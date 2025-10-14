@@ -2,42 +2,74 @@
 const { smd } = require('../lib/smd');
 const fetch = require('node-fetch');
 
-const DEEP_AI_KEY = process.env.DEEP_AI_KEY; // API key yako lazima iwepo
+const DEEP_AI_KEY = process.env.DEEP_AI_KEY; // lazima iwepo kwenye .env yako
 
 smd({
-  pattern: 'logo',
+  pattern: "logo",
   fromMe: false,
-  desc: 'Generate AI Logo using DeepAI'
+  desc: "🎨 Generate stylish AI logos using DeepAI or StableDiffusion fallback"
 }, async (message, match, client) => {
   try {
-    if (!DEEP_AI_KEY) return await message.send("❌ DeepAI API key not found in .env");
+    if (!DEEP_AI_KEY)
+      return await message.reply("⚠️ *Missing API Key!*\nPlease add `DEEP_AI_KEY=your_api_key` in your `.env` file.");
 
-    if (!match) return await message.send("❌ Please provide a prompt for the logo.\nExample: *logo futuristic tech company*");
+    const prompt = match?.trim();
+    if (!prompt)
+      return await message.reply("🖋️ Please provide a text prompt.\nExample: *logo futuristic tech company*");
 
-    // DeepAI Text-to-Image API call
-    const response = await fetch('https://api.deepai.org/api/text2img', {
-      method: 'POST',
-      headers: {
-        'Api-Key': DEEP_AI_KEY,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: new URLSearchParams({
-        text: match
-      })
-    });
+    await message.reply("🧠 *Generating your AI logo...* ⏳\nPlease wait 5–10 seconds.");
 
-    const data = await response.json();
+    // Call DeepAI API
+    let data;
+    try {
+      const res = await fetch("https://api.deepai.org/api/text2img", {
+        method: "POST",
+        headers: {
+          "Api-Key": DEEP_AI_KEY,
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({ text: prompt })
+      });
+      data = await res.json();
+    } catch (e) {
+      console.error("DeepAI request failed:", e);
+    }
 
-    if (!data || !data.output_url) return await message.send("❌ Failed to generate logo.");
+    // Fallback to Stable Diffusion public endpoint
+    if (!data?.output_url) {
+      try {
+        const res2 = await fetch("https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ inputs: prompt })
+        });
+        const blob = await res2.blob();
+        const buffer = await blob.arrayBuffer();
+        const base64Image = Buffer.from(buffer).toString("base64");
 
-    // Send generated logo
-    await client.sendMessage(message.jid, {
-      image: { url: data.output_url },
-      caption: `✨ Here is your AI-generated logo for:\n*${match}*`
-    }, { quoted: message });
+        await client.sendMessage(message.jid, {
+          image: Buffer.from(base64Image, "base64"),
+          caption: `✨ *AI Generated Logo (Stable Diffusion)*\n🧩 Prompt: ${prompt}`
+        }, { quoted: message });
+
+        return;
+      } catch (fallbackErr) {
+        console.error("Stable Diffusion fallback failed:", fallbackErr);
+      }
+    }
+
+    // ✅ Send result if DeepAI succeeded
+    if (data?.output_url) {
+      await client.sendMessage(message.jid, {
+        image: { url: data.output_url },
+        caption: `🎨 *AI Generated Logo*\n🧠 Prompt: ${prompt}\n✨ Powered by *DeepAI*`
+      }, { quoted: message });
+    } else {
+      await message.reply("❌ Sorry, I couldn’t generate a logo this time. Try again later.");
+    }
 
   } catch (err) {
-    console.error("Error in logo command:", err);
-    await message.send("❌ Something went wrong while generating the logo.");
+    console.error("Logo command error:", err);
+    await message.reply("⚠️ An unexpected error occurred while generating the logo.");
   }
 });
