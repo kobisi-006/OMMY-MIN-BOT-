@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: ommy-min-bot
+    env: node
+    plan: free
+    region: oregon
+    buildCommand: "npm install"
+    startCommand: "node index.js"
+    autoDeploy: true
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: BOT_OWNER
+        value: "255760317060"
+      - key: BOT_NAME
+        value: "OMMY-MIN-BOT"
+      - key: AUTO_TYPING
+        value: "off"
+      - key: AUTO_READ
+        value: "on"
+      - key: AUTO_REACT
+        value: "off"
+      - key: OPENAI_KEY
+        value: "YOUR_OPENAI_KEY_HERE"
+      - key: DEEP_AI_KEY
+        value: "YOUR_DEEP_AI_KEY_HERE"
+      # weka environment variables zote unazotumia kwenye .env hapa
