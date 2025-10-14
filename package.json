@@ -1,0 +1,19 @@
+{
+  "name": "ommy-min-bot",
+  "version": "1.0.0",
+  "description": "OMMY-MIN-BOT - WhatsApp bot with plugins, Baileys, and Express keep-alive",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "OMMY",
+  "license": "MIT",
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.16",
+    "axios": "^1.12.2",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
