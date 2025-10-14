@@ -1,68 +1,59 @@
-const { smd } = require('../lib/smd');
+const { smd } = require("../index"); // hakikisha hii inalingana na file kuu lako (index.js)
 
-// Global store for anti-delete per chat
+// Global store
 global.antidelete = global.antidelete || {};
 global.deletedMessages = global.deletedMessages || {};
 
-smd({
-    pattern: 'antidelete',
+smd(
+  {
+    pattern: "antidelete",
     fromMe: true,
-    desc: 'Toggle Anti-Delete on/off per chat',
-}, async (message, text) => {
-    const chatId = message.key.remoteJid;
+    desc: "🔒 Toggle Anti-Delete ON/OFF for this chat",
+  },
+  async (ctx) => {
+    const chatId = ctx.msg.key.remoteJid;
+    const text = (ctx.msg.message?.conversation || "").toLowerCase().split(" ")[1] || "";
+
     global.antidelete[chatId] = global.antidelete[chatId] || false;
 
-    if (text.toLowerCase() === 'on') {
-        global.antidelete[chatId] = true;
-        await message.send(`✅ Anti-Delete is now *ENABLED* for this chat.`);
-    } else if (text.toLowerCase() === 'off') {
-        global.antidelete[chatId] = false;
-        await message.send(`❌ Anti-Delete is now *DISABLED* for this chat.`);
+    if (text === "on") {
+      global.antidelete[chatId] = true;
+      await ctx.send(`✅ Anti-Delete is now *ENABLED* in this chat.`);
+    } else if (text === "off") {
+      global.antidelete[chatId] = false;
+      await ctx.send(`❌ Anti-Delete is now *DISABLED* in this chat.`);
     } else {
-        await message.send(`⚡ Status: *${global.antidelete[chatId] ? 'ENABLED' : 'DISABLED'}*\nUse *antidelete on/off* to toggle.`);
+      await ctx.send(
+        `⚡ Anti-Delete Status: *${global.antidelete[chatId] ? "ENABLED ✅" : "DISABLED ❌"}*\n\nUse:\n*${global.Config.prefix}antidelete on* or *off*`
+      );
     }
-});
+  }
+);
 
-// Listener for deleted messages
-smd({
-    pattern: 'msg.delete',
-    fromMe: false,
-    desc: 'Restore deleted messages automatically',
-}, async (message, text) => {
-    const chatId = message.key.remoteJid;
-    if (!global.antidelete[chatId]) return;
+// ===============================
+// 🔥 Message Delete Listener
+// ===============================
+module.exports.msgDeleteListener = async (sock, msg) => {
+  try {
+    if (!msg.message?.protocolMessage) return;
 
-    try {
-        const deleted = message.message?.protocolMessage;
-        if (!deleted) return;
+    const chatId = msg.key.remoteJid;
+    const sender = msg.key.participant || msg.key.remoteJid;
 
-        const sender = message.key.participant || message.key.remoteJid;
-        const deletedType = Object.keys(deleted)[0];
-        const content = deleted[deletedType];
+    if (!global.antidelete[chatId]) return; // anti-delete off for this chat
 
-        // Save deleted message to history
-        global.deletedMessages[sender] = global.deletedMessages[sender] || [];
-        global.deletedMessages[sender].push({ type: deletedType, content, time: new Date().toLocaleString() });
+    const deletedMsg = msg.message.protocolMessage;
+    const deletedId = deletedMsg.key?.id;
+    if (!deletedId) return;
 
-        // Restore message
-        let restoredText = `⚠️ *Message deleted by ${sender.split('@')[0]}*\nType: ${deletedType}\nTime: ${new Date().toLocaleTimeString()}\n\n`;
+    const deletedType = deletedMsg.protocolMessageType;
+    const time = new Date().toLocaleString();
 
-        if (content?.text || content?.caption) {
-            restoredText += content.text || content.caption;
-        }
+    const infoText = `⚠️ *Message deleted by* @${sender.split("@")[0]}\n🕒 *Time:* ${time}\n🔹 *Type:* ${deletedType}`;
 
-        // Send text
-        await message.send(restoredText);
+    await sock.sendMessage(chatId, { text: infoText, mentions: [sender] });
 
-        // Send media if exists
-        if (content?.image || content?.video || content?.audio || content?.document || content?.sticker) {
-            await message.sendFile(content.url, `📎 Restored ${deletedType}`, { quoted: message });
-        }
-
-    } catch (err) {
-        console.log('Anti-Delete Error:', err);
-        try {
-            await message.send(`❌ Error restoring deleted message: ${err.message}`);
-        } catch(e) { console.log(e); }
-    }
-});
+  } catch (err) {
+    console.log("❌ Anti-Delete Error:", err);
+  }
+};
