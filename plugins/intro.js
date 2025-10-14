@@ -1,62 +1,84 @@
 const { smd } = require('../lib/smd');
+const os = require('os');
 
 smd({
   pattern: "intro",
   fromMe: false,
-  desc: "Show your bot intro with real WhatsApp profile picture"
+  desc: "💫 Display bot’s stylish introduction with profile picture, uptime, and greetings."
 }, async (message, match, client) => {
   try {
-    const userJid = client.user?.id || client.user?.jid;
-    if (!userJid) return await message.send("❌ Bot JID not found, please restart the bot.");
+    const botJid = client.user?.id || client.user?.jid;
+    if (!botJid) return await message.reply("❌ Bot JID not found. Please restart the bot.");
 
-    // ✅ Fetch WhatsApp profile picture (auto)
+    // 🖼️ Try to get bot's real profile picture
     let pfp;
     try {
-      pfp = await client.profilePictureUrl(userJid, "image");
+      pfp = await client.profilePictureUrl(botJid, "image");
     } catch {
-      pfp = "https://telegra.ph/file/1e60489705c851f74b55e.jpg"; // fallback
+      pfp = "https://telegra.ph/file/1e60489705c851f74b55e.jpg"; // fallback image
     }
 
-    // ✅ Dynamic greeting based on time
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes().toString().padStart(2, '0');
-    const date = now.toLocaleDateString();
-    let wish = "🌙 Good Night";
-    if (hours >= 0 && hours < 5) wish = "🌄 Early Morning";
-    else if (hours >= 5 && hours < 12) wish = "⛅ Good Morning";
-    else if (hours >= 12 && hours < 17) wish = "🌞 Good Afternoon";
-    else if (hours >= 17 && hours < 20) wish = "🌥 Good Evening";
+    // 🕐 Greeting message by time
+    const time = new Date();
+    const hours = time.getHours();
+    const minutes = time.getMinutes().toString().padStart(2, '0');
+    const date = time.toLocaleDateString();
+    let greeting;
 
-    // ✅ Bot Info
-    const botName = "OMMY-MIN-BOT";
-    const ownerName = "Ommy 3 Blif";
-    const age = "22";
-    const gender = "Male";
-    const phone = "255624236654";
-    const status = "WhatsApp Bot Developer";
+    if (hours < 5) greeting = "🌃 Midnight Coder Mode";
+    else if (hours < 12) greeting = "🌅 Good Morning";
+    else if (hours < 17) greeting = "🌞 Good Afternoon";
+    else if (hours < 20) greeting = "🌇 Good Evening";
+    else greeting = "🌙 Good Night";
 
-    // ✅ Message body
-    const intro = `
-╭───❮ *🤖 BOT INTRO* ❯───☆
-│ ${wish}
-│ 👤 *Name:* ${botName}
-│ 👨 *Owner:* ${ownerName}
-│ 🎂 *Age:* ${age}
-│ 🚹 *Gender:* ${gender}
-│ ☎️ *Phone:* wa.me/${phone}
-│ 💻 *Status:* ${status}
+    // 🧮 Calculate bot uptime
+    const uptimeSec = process.uptime();
+    const uptimeH = Math.floor(uptimeSec / 3600);
+    const uptimeM = Math.floor((uptimeSec % 3600) / 60);
+    const uptimeS = Math.floor(uptimeSec % 60);
+    const uptime = `${uptimeH}h ${uptimeM}m ${uptimeS}s`;
+
+    // ⚙️ Bot & owner info (customize freely)
+    const botInfo = {
+      name: "🤖 BEN WHITTAKER TECH",
+      owner: "👑 Ommy 3 Blif",
+      gender: "🚹 Male",
+      age: "22",
+      phone: "255624236654",
+      role: "💻 WhatsApp Bot Developer",
+      platform: os.platform(),
+      host: os.hostname(),
+      version: "v10.8.3-stable",
+    };
+
+    // 🧾 Fancy intro text
+    const caption = `
+╭─────────────◆
+│ ${greeting} 🌍
+│
+│ 🤖 *Bot Name:* ${botInfo.name}
+│ 👑 *Owner:* ${botInfo.owner}
+│ 🚹 *Gender:* ${botInfo.gender}
+│ 🎂 *Age:* ${botInfo.age}
+│ ☎️ *Phone:* wa.me/${botInfo.phone}
+│ 💻 *Role:* ${botInfo.role}
+│ 🧠 *Runtime:* ${uptime}
+│ 🖥️ *Platform:* ${botInfo.platform}
+│ 🏠 *Host:* ${botInfo.host}
+│ ⚙️ *Version:* ${botInfo.version}
 │ ⏰ *Time:* ${hours}:${minutes}
 │ 📅 *Date:* ${date}
-╰─────────────────────☆`;
+╰────────────────◆
+🪄 *Ben Whittaker Tech AI System*`;
 
-    await message.client.sendMessage(message.jid, {
+    // 🖼️ Send image + caption
+    await client.sendMessage(message.jid, {
       image: { url: pfp },
-      caption: intro
+      caption: caption
     }, { quoted: message });
 
   } catch (err) {
-    console.error("Error in intro command:", err);
-    await message.send("❌ Something went wrong while showing intro.");
+    console.error("❌ Intro command error:", err);
+    await message.reply("⚠️ Failed to display intro. Try again later.");
   }
 });
