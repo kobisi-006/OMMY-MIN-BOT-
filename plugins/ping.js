@@ -1,43 +1,40 @@
-const { smd } = require('../lib/smd');
-const fs = require('fs');
-const path = require('path');
+const { smd } = require("../index");
+const os = require("os");
 
-// Helper: pick random file from folder
-function getRandomFile(folder) {
-    const files = fs.readdirSync(folder).filter(f => f.endsWith('.mp3'));
-    if (files.length === 0) return null;
-    return path.join(folder, files[Math.floor(Math.random() * files.length)]);
-}
+smd(
+  {
+    pattern: "ping",
+    desc: "💎 Check bot speed and system performance",
+  },
+  async (ctx) => {
+    const start = Date.now();
+    await ctx.send("🏓 *Pinging...*");
+    const latency = Date.now() - start;
 
-// Advanced Ping Command
-smd({
-    pattern: 'ping',
-    fromMe: false,
-    desc: '🏓 Advanced Ping with auto-random voice note (music)'
-}, async (message) => {
-    try {
-        const audioFolder = path.join(__dirname, '../audios');
-        if (!fs.existsSync(audioFolder)) return await message.send('❌ Audio folder not found!');
+    const uptime = process.uptime();
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    const seconds = Math.floor(uptime % 60);
 
-        // Pick random beep and main audio
-        const beepAudio = getRandomFile(audioFolder); // random beep
-        const mainAudio = getRandomFile(audioFolder); // random ping/music
+    const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
+    const freeMem = (os.freemem() / 1024 / 1024 / 1024).toFixed(2);
+    const platform = os.platform().toUpperCase();
+    const cpuModel = os.cpus()[0].model;
 
-        // Optional delay for realism
-        const delay = Math.floor(Math.random() * 1000) + 500;
-        await new Promise(res => setTimeout(res, delay));
+    const msg = `
+╭───💠 *OMMY-MIN-BOT STATUS* 💠───╮
+│
+│ ⚡ *Ping:* ${latency} ms
+│ 🕐 *Uptime:* ${hours}h ${minutes}m ${seconds}s
+│ 💾 *RAM:* ${freeMem} GB free / ${totalMem} GB total
+│ 💻 *System:* ${platform}
+│ 🧠 *CPU:* ${cpuModel.slice(0, 20)}...
+│ 👑 *Owner:* ${global.Config.owner}
+│ 🤖 *Bot:* ${global.Config.caption}
+│
+╰────────────────────────────╯
+`;
 
-        // Send beep first if exists
-        if (beepAudio) await message.sendFile(beepAudio, '🔊 Beep!', 'audio/mp3', true);
-
-        // Send main random music ping as voice note
-        if (mainAudio) await message.sendFile(mainAudio, '🏓 Pong!', 'audio/mp3', true);
-
-        // Send text feedback
-        await message.send(`🏓 Pong! Response delay: ${delay}ms`);
-
-    } catch (err) {
-        console.log('Error in advanced ping:', err);
-        await message.send('❌ Something went wrong while sending ping.');
-    }
-});
+    await ctx.send(msg);
+  }
+);
