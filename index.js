@@ -1,5 +1,5 @@
 //==============================//
-//  OMMY-MIN-BOT MAIN FILE (FIXED)
+//      OMMY-MIN-BOT v11.0
 //==============================//
 
 require("dotenv").config();
@@ -7,6 +7,8 @@ const fs = require("fs");
 const axios = require("axios");
 const express = require("express");
 const qrcode = require("qrcode-terminal");
+const os = require("os");
+const path = require("path");
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -27,18 +29,15 @@ app.listen(PORT, () => console.log(`🌍 Server running on port ${PORT}`));
 //==============================//
 global.Config = {
   owner: "255624236654",
-  caption: "🤖 OMMY-MIN-BOT",
   prefix: "*",
+  caption: "🤖 OMMY-MIN-BOT v11",
 };
 
-//==============================//
-//  COMMAND HANDLER
-//==============================//
 global.commands = global.commands || [];
 function smd({ pattern, fromMe = false, desc = "" }, callback) {
   global.commands.push({ pattern, fromMe, desc, callback });
 }
-module.exports = { smd, Config: global.Config, commands: global.commands };
+module.exports = { smd };
 
 //==============================//
 //  AUTO LOAD PLUGINS
@@ -50,7 +49,7 @@ fs.readdirSync(pluginsPath)
   .filter((file) => file.endsWith(".js"))
   .forEach((file) => {
     try {
-      require(`${pluginsPath}/${file}`);
+      require(path.join(pluginsPath, file));
       console.log("✅ Plugin loaded:", file);
     } catch (err) {
       console.error("❌ Failed to load plugin:", file, err);
@@ -58,7 +57,7 @@ fs.readdirSync(pluginsPath)
   });
 
 //==============================//
-//  START BOT
+//  START WHATSAPP BOT
 //==============================//
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState("./session/");
@@ -73,7 +72,10 @@ async function startBot() {
   sock.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    if (qr) qrcode.generate(qr, { small: true });
+    if (qr) {
+      console.log("📱 Scan this QR code to log in:");
+      qrcode.generate(qr, { small: true });
+    }
 
     if (connection === "close") {
       const shouldReconnect =
@@ -81,7 +83,7 @@ async function startBot() {
       console.log("⚠️ Connection closed! Reconnecting...");
       if (shouldReconnect) startBot();
     } else if (connection === "open") {
-      console.log("✅ OMMY-MIN-BOT connected!");
+      console.log("✅ Bot connected successfully!");
     }
   });
 
@@ -97,20 +99,42 @@ async function startBot() {
 
       const from = msg.key.remoteJid;
       const text =
-        msg.message.conversation || msg.message.extendedTextMessage?.text || "";
+        msg.message.conversation ||
+        msg.message.extendedTextMessage?.text ||
+        "";
 
       if (!text.startsWith(global.Config.prefix)) return;
 
       const body = text.slice(global.Config.prefix.length).trim();
       const [cmdName, ...args] = body.split(" ");
       const command = global.commands.find((c) => c.pattern === cmdName);
-      if (!command) return;
 
-      console.log(`📩 Command received: ${cmdName}`);
+      if (command) {
+        console.log(`📩 Command received: ${cmdName}`);
 
-      // Pass full sock object and msg
-      await command.callback(msg, args, sock);
-
+        await command.callback(
+          {
+            send: async (reply) =>
+              await sock.sendMessage(from, { text: reply }, { quoted: msg }),
+            reply: async (reply) =>
+              await sock.sendMessage(from, { text: reply }, { quoted: msg }),
+            sendFile: async (file, caption = "") =>
+              await sock.sendMessage(from, { image: { url: file }, caption }, { quoted: msg }),
+            sendAudio: async (filePath) =>
+              await sock.sendMessage(
+                from,
+                { audio: { url: filePath }, mimetype: "audio/mp4", ptt: true },
+                { quoted: msg }
+              ),
+            react: async (emoji) => {
+              try {
+                await sock.sendMessage(from, { react: { text: emoji, key: msg.key } });
+              } catch {}
+            },
+          },
+          { args, msg, sock }
+        );
+      }
     } catch (err) {
       console.error("❌ Error handling message:", err);
     }
