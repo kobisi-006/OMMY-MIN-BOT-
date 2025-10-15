@@ -1,88 +1,82 @@
-const { smd } = require('../lib/smd');
-const fs = require('fs');
-const dbPath = './antitag-db.json';
+// plugins/antitag.js
+const { smd } = require("../lib/smd");
+const fs = require("fs");
+const path = require("path");
 
+const dbPath = path.join(__dirname, "../antitag-db.json");
+if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, "{}");
+
+// Toggle command
 smd({
   pattern: "antitag",
   fromMe: true,
-  desc: "🛡️ Turn ON/OFF AntiTag system with warn, delete & kick"
+  desc: "🛡️ Turn ON/OFF AntiTag system with warn, delete & kick",
 }, async (message, match, client) => {
-  const chatId = message.jid;
+  const chatId = message.key.remoteJid;
   const text = match?.trim()?.toLowerCase();
 
-  // Load DB or create new
-  let db = fs.existsSync(dbPath) ? JSON.parse(fs.readFileSync(dbPath)) : {};
+  const db = JSON.parse(fs.readFileSync(dbPath));
   if (!db[chatId]) db[chatId] = { enabled: false, warns: {} };
 
-  // Toggle system
   if (text === "on") {
     db[chatId].enabled = true;
     fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
-    return message.reply("✅ *AntiTag system activated!*\n🚫 Anyone tagging the owner/bot will be warned or kicked!");
+    return client.sendMessage(chatId, { text: "✅ *AntiTag system activated!* 🚫 Anyone tagging the owner/bot will be warned or kicked!" });
   } else if (text === "off") {
     db[chatId].enabled = false;
     fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
-    return message.reply("❌ *AntiTag system turned off!*");
+    return client.sendMessage(chatId, { text: "❌ *AntiTag system turned off!*" });
   }
 
-  // Show status
-  await message.reply(`⚙️ *AntiTag:* ${db[chatId].enabled ? "🟢 ON" : "🔴 OFF"}\nUse *.antitag on/off* to toggle.`);
+  client.sendMessage(chatId, { text: `⚙️ *AntiTag:* ${db[chatId].enabled ? "🟢 ON" : "🔴 OFF"}\nUse *.antitag on/off* to toggle.` });
 });
 
+// Auto-check messages
+module.exports.autoAntiTag = async (sock, msgUpsert) => {
+  try {
+    const messages = msgUpsert.messages || [];
+    const ownerNumber = "255624236654@s.whatsapp.net";
+    const botNumber = sock.user.jid;
 
-// === AUTO CHECK & ACTION ===
-smd({
-  on: "message",
-}, async (message, _, client) => {
-  const chatId = message.jid;
-  const ownerNumber = "255624236654@s.whatsapp.net";
-  const botNumber = client.user?.id || client.user?.jid;
+    const db = JSON.parse(fs.readFileSync(dbPath));
 
-  if (!fs.existsSync(dbPath)) return;
-  const db = JSON.parse(fs.readFileSync(dbPath));
-  if (!db[chatId] || !db[chatId].enabled) return;
+    for (const msg of messages) {
+      const chatId = msg.key.remoteJid;
+      if (!db[chatId] || !db[chatId].enabled) continue;
 
-  const mentions = message.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-  if (!mentions.length) return;
+      const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+      if (!mentions.includes(ownerNumber) && !mentions.includes(botNumber)) continue;
 
-  // If bot or owner is tagged
-  if (mentions.includes(ownerNumber) || mentions.includes(botNumber)) {
-    const sender = message.sender;
-    const senderName = message.pushName || "User";
+      const sender = msg.key.participant || msg.key.remoteJid;
+      const now = Date.now();
 
-    // Init warn record
-    if (!db[chatId].warns[sender]) db[chatId].warns[sender] = { count: 0, lastWarn: 0 };
-    const now = Date.now();
+      if (!db[chatId].warns[sender]) db[chatId].warns[sender] = { count: 0, lastWarn: 0 };
+      if (now - db[chatId].warns[sender].lastWarn < 10000) continue; // cooldown
 
-    // Cooldown 10 seconds per warn
-    if (now - db[chatId].warns[sender].lastWarn < 10000) return;
+      db[chatId].warns[sender].count++;
+      db[chatId].warns[sender].lastWarn = now;
+      fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 
-    db[chatId].warns[sender].count++;
-    db[chatId].warns[sender].lastWarn = now;
-    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+      // Delete offending message
+      await sock.sendMessage(chatId, { delete: msg.key });
 
-    const warns = db[chatId].warns[sender].count;
+      // Send warning
+      const warnMsg = `⚠️ *ANTI-TAG ALERT*\n👤 User: @${sender.split('@')[0]}\n📛 Warning: ${db[chatId].warns[sender].count}/3\n🚫 Reason: Tagging Owner/Bot`;
+      await sock.sendMessage(chatId, { text: warnMsg, mentions: [sender] });
 
-    // Delete the message
-    await client.sendMessage(chatId, { delete: message.key });
-
-    // Stylish warn message
-    const warnMsg = `⚠️ *ANTI-TAG ALERT*\n👤 User: @${sender.split('@')[0]}\n📛 Warning: ${warns}/3\n🚫 Reason: Tagging Owner/Bot`;
-    await client.sendMessage(chatId, { text: warnMsg, mentions: [sender] });
-
-    // Kick user after 3 warns
-    if (warns >= 3) {
-      try {
-        await client.groupParticipantsUpdate(chatId, [sender], "remove");
-        await client.sendMessage(chatId, {
-          text: `🔥 *User Removed!*\n@${sender.split('@')[0]} exceeded 3 warnings.`,
-          mentions: [sender]
-        });
-        delete db[chatId].warns[sender];
-        fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
-      } catch (e) {
-        await client.sendMessage(chatId, { text: "⚠️ Failed to remove user. Bot must be *admin*!" });
+      // Kick if 3 warns
+      if (db[chatId].warns[sender].count >= 3) {
+        try {
+          await sock.groupParticipantsUpdate(chatId, [sender], "remove");
+          await sock.sendMessage(chatId, { text: `🔥 *User Removed!* @${sender.split('@')[0]} exceeded 3 warnings.`, mentions: [sender] });
+          delete db[chatId].warns[sender];
+          fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+        } catch {
+          await sock.sendMessage(chatId, { text: "⚠️ Failed to remove user. Bot must be *admin*!" });
+        }
       }
     }
+  } catch (err) {
+    console.log("❌ AntiTag Error:", err);
   }
-});
+};
