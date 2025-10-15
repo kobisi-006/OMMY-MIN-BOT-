@@ -1,3 +1,4 @@
+// plugins/ping.js
 const { smd } = require('../lib/smd');
 const fs = require('fs');
 const path = require('path');
@@ -5,45 +6,50 @@ const path = require('path');
 smd({
     pattern: "ping",
     fromMe: false,
-    desc: "🏓 Check bot speed and play random ping sound"
+    desc: "🏓 Check bot speed with styled output and random ping sound"
 }, async (message, args, client) => {
     try {
-        const chatId = message.key.remoteJid;
-        const latency = Date.now() - (message.messageTimestamp * 1000);
         const now = new Date();
-        const time = now.toLocaleTimeString();
+        const latency = Date.now() - (message.msg.messageTimestamp * 1000); // ms
+        const hours = now.getHours();
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const seconds = now.getSeconds().toString().padStart(2, '0');
         const date = now.toLocaleDateString();
 
-        const pingText = `
-╭───❮ *🏓 PING STATUS* ❯───☆
-│ ⚡ Speed: ${latency}ms
-│ ⏰ Time: ${time}
-│ 📅 Date: ${date}
-│ 🤖 Status: ✅ Active
-╰─────────────────────☆`;
+        // Reaction emoji for fun
+        await client.send("⚡ Pinging... ⏳");
 
-        // Send temporary message
-        await client.sendMessage(chatId, { text: "🏓 Checking ping..." }, { quoted: message });
-
-        // === Play random audio from /audios ===
+        // Play random ping audio from /audios
         const audioFolder = path.join(__dirname, '../audios');
         if (fs.existsSync(audioFolder)) {
             const files = fs.readdirSync(audioFolder).filter(f => f.endsWith('.mp3'));
             if (files.length > 0) {
                 const randomFile = path.join(audioFolder, files[Math.floor(Math.random() * files.length)]);
-                await client.sendMessage(chatId, {
-                    audio: { url: randomFile },
-                    mimetype: 'audio/mp4',
-                    ptt: true
-                }, { quoted: message });
+                await client.sendAudio(randomFile);
             }
         }
 
-        // Send final ping text
-        await client.sendMessage(chatId, { text: pingText }, { quoted: message });
+        // Determine greeting based on time
+        let wish = '🌙 GOOD NIGHT';
+        if(hours >= 5 && hours < 12) wish = '⛅ GOOD MORNING';
+        else if(hours >= 12 && hours < 17) wish = '🌞 GOOD AFTERNOON';
+        else if(hours >= 17 && hours < 20) wish = '🌇 GOOD EVENING';
+
+        // Styled ping output
+        const pingText = `
+╭─────────────────────────╮
+│       ${wish}       
+│ ⚡ Bot Latency : ${latency}ms
+│ ⏰ Time        : ${hours}:${minutes}:${seconds}
+│ 📅 Date        : ${date}
+│ 🤖 Status      : ✅ Active
+╰─────────────────────────╯
+`;
+
+        await client.send(pingText);
 
     } catch (err) {
         console.error("❌ Ping command error:", err);
-        await client.sendMessage(message.key.remoteJid, { text: "❌ Something went wrong while pinging." });
+        await client.send("❌ Something went wrong while pinging.");
     }
 });
