@@ -2,24 +2,26 @@
 const { smd } = require('../lib/smd');
 const fetch = require('node-fetch');
 
-const DEEP_AI_KEY = process.env.DEEP_AI_KEY; // lazima iwepo kwenye .env yako
+const DEEP_AI_KEY = process.env.DEEP_AI_KEY; // lazima iwepo kwenye .env
 
 smd({
   pattern: "logo",
   fromMe: false,
-  desc: "🎨 Generate stylish AI logos using DeepAI or StableDiffusion fallback"
+  desc: "🎨 Generate stylish AI logos with progress reactions and thumbnail preview"
 }, async (message, match, client) => {
   try {
     if (!DEEP_AI_KEY)
-      return await message.reply("⚠️ *Missing API Key!*\nPlease add `DEEP_AI_KEY=your_api_key` in your `.env` file.");
+      return await message.reply("⚠️ *Missing API Key!*\nAdd `DEEP_AI_KEY=your_api_key` in `.env`.");
 
     const prompt = match?.trim();
     if (!prompt)
       return await message.reply("🖋️ Please provide a text prompt.\nExample: *logo futuristic tech company*");
 
-    await message.reply("🧠 *Generating your AI logo...* ⏳\nPlease wait 5–10 seconds.");
+    // ⏳ React processing
+    await message.react("⌛");
+    await message.reply("🧠 Generating your AI logo... Please wait 5–10 seconds.");
 
-    // Call DeepAI API
+    // --- DeepAI API ---
     let data;
     try {
       const res = await fetch("https://api.deepai.org/api/text2img", {
@@ -35,35 +37,41 @@ smd({
       console.error("DeepAI request failed:", e);
     }
 
-    // Fallback to Stable Diffusion public endpoint
+    // --- Fallback Stable Diffusion if DeepAI fails ---
     if (!data?.output_url) {
       try {
         const res2 = await fetch("https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.HF_API_KEY || ""}` // optional HuggingFace key
+          },
           body: JSON.stringify({ inputs: prompt })
         });
         const blob = await res2.blob();
         const buffer = await blob.arrayBuffer();
         const base64Image = Buffer.from(buffer).toString("base64");
 
+        // Thumbnail preview
         await client.sendMessage(message.jid, {
           image: Buffer.from(base64Image, "base64"),
           caption: `✨ *AI Generated Logo (Stable Diffusion)*\n🧩 Prompt: ${prompt}`
         }, { quoted: message });
 
+        await message.react("✅");
         return;
       } catch (fallbackErr) {
         console.error("Stable Diffusion fallback failed:", fallbackErr);
       }
     }
 
-    // ✅ Send result if DeepAI succeeded
+    // --- Send result if DeepAI succeeded ---
     if (data?.output_url) {
       await client.sendMessage(message.jid, {
         image: { url: data.output_url },
         caption: `🎨 *AI Generated Logo*\n🧠 Prompt: ${prompt}\n✨ Powered by *DeepAI*`
       }, { quoted: message });
+      await message.react("✅");
     } else {
       await message.reply("❌ Sorry, I couldn’t generate a logo this time. Try again later.");
     }
