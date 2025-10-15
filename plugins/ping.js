@@ -6,15 +6,10 @@ smd({
     pattern: "ping",
     fromMe: false,
     desc: "🏓 Check bot speed and play random ping sound"
-}, async (message, match, sock) => {
+}, async (message, args, client) => {
     try {
         const chatId = message.key.remoteJid;
-
-        // === Temporary checking message ===
-        const temp = await sock.sendMessage(chatId, { text: "🏓 Checking ping..." }, { quoted: message });
-
-        // === Calculate latency ===
-        const latency = Date.now() - message.messageTimestamp * 1000; // ms
+        const latency = Date.now() - (message.messageTimestamp * 1000);
         const now = new Date();
         const time = now.toLocaleTimeString();
         const date = now.toLocaleDateString();
@@ -27,25 +22,28 @@ smd({
 │ 🤖 Status: ✅ Active
 ╰─────────────────────☆`;
 
-        // === Pick random audio from /audios ===
+        // Send temporary message
+        await client.sendMessage(chatId, { text: "🏓 Checking ping..." }, { quoted: message });
+
+        // === Play random audio from /audios ===
         const audioFolder = path.join(__dirname, '../audios');
         if (fs.existsSync(audioFolder)) {
             const files = fs.readdirSync(audioFolder).filter(f => f.endsWith('.mp3'));
             if (files.length > 0) {
                 const randomFile = path.join(audioFolder, files[Math.floor(Math.random() * files.length)]);
-                await sock.sendMessage(chatId, {
+                await client.sendMessage(chatId, {
                     audio: { url: randomFile },
                     mimetype: 'audio/mp4',
-                    ptt: true // send as voice note
+                    ptt: true
                 }, { quoted: message });
             }
         }
 
-        // === Send final ping status ===
-        await sock.sendMessage(chatId, { text: pingText }, { quoted: message });
+        // Send final ping text
+        await client.sendMessage(chatId, { text: pingText }, { quoted: message });
 
     } catch (err) {
         console.error("❌ Ping command error:", err);
-        await sock.sendMessage(message.key.remoteJid, { text: "❌ Something went wrong while pinging." });
+        await client.sendMessage(message.key.remoteJid, { text: "❌ Something went wrong while pinging." });
     }
 });
