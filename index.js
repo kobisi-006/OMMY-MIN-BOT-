@@ -1,5 +1,5 @@
 //==============================//
-//  OMMY-MIN-BOT MAIN FILE
+//  OMMY-MIN-BOT MAIN FILE (FIXED)
 //==============================//
 
 require("dotenv").config();
@@ -26,26 +26,19 @@ app.listen(PORT, () => console.log(`🌍 Server running on port ${PORT}`));
 //  GLOBAL CONFIG
 //==============================//
 global.Config = {
-  owner: "255624236654", // 👈 weka namba yako hapa
+  owner: "255624236654",
   caption: "🤖 OMMY-MIN-BOT",
-  prefix: "*", // Prefix ya commands (mfano: *ping)
+  prefix: "*",
 };
 
 //==============================//
-//  COMMAND HANDLER SYSTEM
+//  COMMAND HANDLER
 //==============================//
 global.commands = global.commands || [];
-
 function smd({ pattern, fromMe = false, desc = "" }, callback) {
   global.commands.push({ pattern, fromMe, desc, callback });
 }
-
-// 🔄 Export ili plugins zote ziitumie
-module.exports = {
-  smd,
-  Config: global.Config,
-  commands: global.commands
-};
+module.exports = { smd, Config: global.Config, commands: global.commands };
 
 //==============================//
 //  AUTO LOAD PLUGINS
@@ -65,7 +58,7 @@ fs.readdirSync(pluginsPath)
   });
 
 //==============================//
-//  START WHATSAPP BOT
+//  START BOT
 //==============================//
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState("./session/");
@@ -77,14 +70,10 @@ async function startBot() {
     printQRInTerminal: false,
   });
 
-  // === QR Code Event ===
   sock.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    if (qr) {
-      console.log("📱 Scan this QR code on WhatsApp to log in:");
-      qrcode.generate(qr, { small: true });
-    }
+    if (qr) qrcode.generate(qr, { small: true });
 
     if (connection === "close") {
       const shouldReconnect =
@@ -92,7 +81,7 @@ async function startBot() {
       console.log("⚠️ Connection closed! Reconnecting...");
       if (shouldReconnect) startBot();
     } else if (connection === "open") {
-      console.log("✅ OMMY-MIN-BOT connected successfully!");
+      console.log("✅ OMMY-MIN-BOT connected!");
     }
   });
 
@@ -108,39 +97,20 @@ async function startBot() {
 
       const from = msg.key.remoteJid;
       const text =
-        msg.message.conversation ||
-        msg.message.extendedTextMessage?.text ||
-        "";
+        msg.message.conversation || msg.message.extendedTextMessage?.text || "";
 
       if (!text.startsWith(global.Config.prefix)) return;
 
       const body = text.slice(global.Config.prefix.length).trim();
       const [cmdName, ...args] = body.split(" ");
       const command = global.commands.find((c) => c.pattern === cmdName);
+      if (!command) return;
 
-      if (command) {
-        console.log(`📩 Command received: ${cmdName}`);
+      console.log(`📩 Command received: ${cmdName}`);
 
-        await command.callback(
-          {
-            send: async (reply) =>
-              await sock.sendMessage(from, { text: reply }, { quoted: msg }),
-            sendFile: async (file, caption = "") =>
-              await sock.sendMessage(
-                from,
-                { image: { url: file }, caption },
-                { quoted: msg }
-              ),
-            sendAudio: async (filePath) =>
-              await sock.sendMessage(
-                from,
-                { audio: { url: filePath }, mimetype: "audio/mp4", ptt: true },
-                { quoted: msg }
-              ),
-          },
-          { args, msg, sock }
-        );
-      }
+      // Pass full sock object and msg
+      await command.callback(msg, args, sock);
+
     } catch (err) {
       console.error("❌ Error handling message:", err);
     }
