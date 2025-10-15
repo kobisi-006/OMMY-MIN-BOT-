@@ -34,7 +34,6 @@
     "moment": "^2.29.4",
     "google-it": "^1.6.0",
     "openai": "^4.27.0"
-    // DeepAI API handled via axios (no separate npm package required)
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
