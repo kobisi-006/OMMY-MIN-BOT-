@@ -1,19 +1,18 @@
 //==============================//
-//      OMMY-MIN-BOT v11.0
+//  OMMY-MIN-BOT MAIN FILE
 //==============================//
 
 require("dotenv").config();
 const fs = require("fs");
+const path = require("path");
 const axios = require("axios");
 const express = require("express");
 const qrcode = require("qrcode-terminal");
-const os = require("os");
-const path = require("path");
 const {
   default: makeWASocket,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
-  DisconnectReason,
+  DisconnectReason
 } = require("@whiskeysockets/baileys");
 
 //==============================//
@@ -28,29 +27,35 @@ app.listen(PORT, () => console.log(`🌍 Server running on port ${PORT}`));
 //  GLOBAL CONFIG
 //==============================//
 global.Config = {
-  owner: "255624236654",
-  prefix: "*",
-  caption: "🤖 OMMY-MIN-BOT v11",
+  owner: "255624236654", // 👈 weka namba yako hapa
+  caption: "🤖 OMMY-MIN-BOT",
+  prefix: "*", // Prefix ya commands
 };
 
+//==============================//
+//  COMMAND HANDLER SYSTEM
+//==============================//
 global.commands = global.commands || [];
+
 function smd({ pattern, fromMe = false, desc = "" }, callback) {
   global.commands.push({ pattern, fromMe, desc, callback });
 }
-module.exports = { smd };
+
+// 🔄 Export ili plugins zote ziitumie
+module.exports = { smd, Config: global.Config, commands: global.commands };
 
 //==============================//
 //  AUTO LOAD PLUGINS
 //==============================//
-const pluginsPath = "./plugins";
+const pluginsPath = path.join(__dirname, "plugins");
 if (!fs.existsSync(pluginsPath)) fs.mkdirSync(pluginsPath);
 
 fs.readdirSync(pluginsPath)
-  .filter((file) => file.endsWith(".js"))
-  .forEach((file) => {
+  .filter(file => file.endsWith(".js"))
+  .forEach(file => {
     try {
-      require(path.join(pluginsPath, file));
-      console.log("✅ Plugin loaded:", file);
+      require(path.join(pluginsPath, file)); // plugin lazima itumie smd(...)
+      console.log("✅ Loaded plugin:", file);
     } catch (err) {
       console.error("❌ Failed to load plugin:", file, err);
     }
@@ -69,11 +74,12 @@ async function startBot() {
     printQRInTerminal: false,
   });
 
+  // === QR Code Event ===
   sock.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      console.log("📱 Scan this QR code to log in:");
+      console.log("📱 Scan this QR code on WhatsApp to log in:");
       qrcode.generate(qr, { small: true });
     }
 
@@ -83,7 +89,7 @@ async function startBot() {
       console.log("⚠️ Connection closed! Reconnecting...");
       if (shouldReconnect) startBot();
     } else if (connection === "open") {
-      console.log("✅ Bot connected successfully!");
+      console.log("✅ OMMY-MIN-BOT connected successfully!");
     }
   });
 
@@ -114,12 +120,16 @@ async function startBot() {
 
         await command.callback(
           {
-            send: async (reply) =>
-              await sock.sendMessage(from, { text: reply }, { quoted: msg }),
-            reply: async (reply) =>
-              await sock.sendMessage(from, { text: reply }, { quoted: msg }),
+            reply: async (text) =>
+              await sock.sendMessage(from, { text }, { quoted: msg }),
+            send: async (text) =>
+              await sock.sendMessage(from, { text }, { quoted: msg }),
             sendFile: async (file, caption = "") =>
-              await sock.sendMessage(from, { image: { url: file }, caption }, { quoted: msg }),
+              await sock.sendMessage(
+                from,
+                { image: { url: file }, caption },
+                { quoted: msg }
+              ),
             sendAudio: async (filePath) =>
               await sock.sendMessage(
                 from,
@@ -127,10 +137,8 @@ async function startBot() {
                 { quoted: msg }
               ),
             react: async (emoji) => {
-              try {
-                await sock.sendMessage(from, { react: { text: emoji, key: msg.key } });
-              } catch {}
-            },
+              try { await sock.sendMessage(from, { react: { text: emoji, key: msg.key } }); } catch {}
+            }
           },
           { args, msg, sock }
         );
