@@ -1,1 +1,6 @@
+
+----------//# API KEY //#-----------
 DEEP_AI_KEY=5bfeb575-9bb2-4847-acf4-f32d0d3d713a
+SPOTIFY_CLIENT_ID=f792e84421654446ba4a793618de335b
+SPOTIFY_CLIENT_SECRET=ba03c15f48e2451d92f09b576e8369ac
+REDIRECT_URI=https://botho-vip-4.onrender.com/callback
