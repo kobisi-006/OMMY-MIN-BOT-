@@ -1,8 +1,9 @@
 // plugins/antilink.js
 const { smd } = require('../lib/smd');
 const fs = require('fs');
+const path = require('path');
 
-const dbPath = './antilink-db.json';
+const dbPath = path.join(__dirname, '../antilink-db.json');
 
 // 🔄 Load / Save database
 function loadDB() {
@@ -37,52 +38,56 @@ smd({
   await message.reply(`⚙️ Anti-Link status: ${db[chatId].enabled ? "ON ✅" : "OFF ❌"}\nUse \`.antilink on/off\` to toggle.`);
 });
 
-// 🛡️ Listener for detecting links
+// 🛡️ Listener for detecting links in messages
 smd({
   on: 'message'
 }, async (message, match, client) => {
-  const chatId = message.jid;
-  const db = loadDB();
-  if (!db[chatId] || !db[chatId].enabled) return;
+  try {
+    const chatId = message.jid;
+    const db = loadDB();
+    if (!db[chatId] || !db[chatId].enabled) return;
 
-  const text = message.message?.conversation || message.message?.extendedTextMessage?.text;
-  if (!text) return;
+    const text = message.message?.conversation || message.message?.extendedTextMessage?.text;
+    if (!text) return;
 
-  // ⚠️ Regex for common links
-  const linkRegex = /(https?:\/\/)?(www\.)?(wa\.me|telegram\.me|instagram\.com|tiktok\.com|youtu\.be|youtube\.com)\/[^\s]+/i;
-  if (!linkRegex.test(text)) return;
+    // ⚠️ Regex for common links
+    const linkRegex = /(https?:\/\/)?(www\.)?(wa\.me|telegram\.me|instagram\.com|tiktok\.com|youtu\.be|youtube\.com)\/[^\s]+/i;
+    if (!linkRegex.test(text)) return;
 
-  const sender = message.sender;
-  const botNumber = client.user?.id || client.user?.jid;
+    const sender = message.sender;
+    const botNumber = client.user?.id || client.user?.jid;
 
-  // 🛑 Ignore bot owner
-  const ownerNumber = "255624236654@s.whatsapp.net"; // Badilisha na number yako
-  if ([ownerNumber, botNumber].includes(sender)) return;
+    // 🛑 Ignore bot owner
+    const ownerNumber = "255624236654@s.whatsapp.net"; // Badilisha na namba yako
+    if ([ownerNumber, botNumber].includes(sender)) return;
 
-  // ⚠️ Warn user
-  if (!db[chatId].warns[sender]) db[chatId].warns[sender] = 0;
-  db[chatId].warns[sender] += 1;
-  const warns = db[chatId].warns[sender];
-  saveDB(db);
+    // ⚠️ Warn user
+    if (!db[chatId].warns[sender]) db[chatId].warns[sender] = 0;
+    db[chatId].warns[sender] += 1;
+    const warns = db[chatId].warns[sender];
+    saveDB(db);
 
-  // ❌ Delete the message
-  try { await client.sendMessage(chatId, { delete: message.key }); } catch {}
+    // ❌ Delete the message
+    try { await client.sendMessage(chatId, { delete: message.key }); } catch {}
 
-  // ⚠️ Send warning
-  await client.sendMessage(chatId, {
-    text: `⚠️ @${sender.split('@')[0]} — Posting links is not allowed!\nWarning ${warns}/3`,
-    mentions: [sender]
-  });
+    // ⚠️ Send warning with emoji
+    await client.sendMessage(chatId, {
+      text: `⚠️ @${sender.split('@')[0]} — Posting links is not allowed!\nWarning ${warns}/3`,
+      mentions: [sender]
+    });
 
-  // 🚨 Kick user after 3 warnings (if bot is admin)
-  if (warns >= 3) {
-    try {
-      await client.groupParticipantsUpdate(chatId, [sender], 'remove');
-      await client.sendMessage(chatId, { text: `🚫 @${sender.split('@')[0]} has been removed after 3 warnings!`, mentions: [sender] });
-      delete db[chatId].warns[sender];
-      saveDB(db);
-    } catch {
-      await client.sendMessage(chatId, { text: "⚠️ Failed to kick user. Make sure bot is admin." });
+    // 🚨 Kick user after 3 warnings (if bot is admin)
+    if (warns >= 3) {
+      try {
+        await client.groupParticipantsUpdate(chatId, [sender], 'remove');
+        await client.sendMessage(chatId, { text: `🚫 @${sender.split('@')[0]} has been removed after 3 warnings!`, mentions: [sender] });
+        delete db[chatId].warns[sender];
+        saveDB(db);
+      } catch {
+        await client.sendMessage(chatId, { text: "⚠️ Failed to kick user. Make sure bot is admin." });
+      }
     }
+  } catch (err) {
+    console.error("❌ Anti-Link error:", err);
   }
 });
