@@ -1,27 +1,28 @@
-const { smd } = require('../lib/smd');
-const os = require('os');
+// plugins/intro.js
+const { smd } = require("../index");
+const os = require("os");
 
 smd({
   pattern: "intro",
   fromMe: false,
   desc: "💫 Display bot’s stylish introduction with profile picture, uptime, and greetings."
-}, async (message, match, client) => {
+}, async (message, match, { sock }) => {
   try {
-    const botJid = client.user?.id || client.user?.jid;
-    if (!botJid) return await message.reply("❌ Bot JID not found. Please restart the bot.");
+    const botJid = sock.user?.id || sock.user?.jid;
+    if (!botJid) return await message.send("❌ Bot JID not found. Please restart the bot.");
 
-    // 🖼️ Try to get bot's real profile picture
+    // 🖼️ Get bot’s profile picture
     let pfp;
     try {
-      pfp = await client.profilePictureUrl(botJid, "image");
+      pfp = await sock.profilePictureUrl(botJid, "image");
     } catch {
-      pfp = "https://telegra.ph/file/1e60489705c851f74b55e.jpg"; // fallback image
+      pfp = "https://telegra.ph/file/1e60489705c851f74b55e.jpg";
     }
 
-    // 🕐 Greeting message by time
+    // 🕒 Time & greeting
     const time = new Date();
     const hours = time.getHours();
-    const minutes = time.getMinutes().toString().padStart(2, '0');
+    const minutes = time.getMinutes().toString().padStart(2, "0");
     const date = time.toLocaleDateString();
     let greeting;
 
@@ -31,14 +32,14 @@ smd({
     else if (hours < 20) greeting = "🌇 Good Evening";
     else greeting = "🌙 Good Night";
 
-    // 🧮 Calculate bot uptime
+    // 🧮 Bot uptime
     const uptimeSec = process.uptime();
     const uptimeH = Math.floor(uptimeSec / 3600);
     const uptimeM = Math.floor((uptimeSec % 3600) / 60);
     const uptimeS = Math.floor(uptimeSec % 60);
     const uptime = `${uptimeH}h ${uptimeM}m ${uptimeS}s`;
 
-    // ⚙️ Bot & owner info (customize freely)
+    // ⚙️ Bot info
     const botInfo = {
       name: "🤖 BEN WHITTAKER TECH",
       owner: "👑 Ommy 3 Blif",
@@ -51,7 +52,6 @@ smd({
       version: "v10.8.3-stable",
     };
 
-    // 🧾 Fancy intro text
     const caption = `
 ╭─────────────◆
 │ ${greeting} 🌍
@@ -71,14 +71,14 @@ smd({
 ╰────────────────◆
 🪄 *Ben Whittaker Tech AI System*`;
 
-    // 🖼️ Send image + caption
-    await client.sendMessage(message.jid, {
+    // 🖼️ Send the fancy message
+    await sock.sendMessage(message.msg.key.remoteJid, {
       image: { url: pfp },
-      caption: caption
-    }, { quoted: message });
+      caption,
+    }, { quoted: message.msg });
 
   } catch (err) {
     console.error("❌ Intro command error:", err);
-    await message.reply("⚠️ Failed to display intro. Try again later.");
+    await message.send("⚠️ Failed to display intro. Try again later.");
   }
 });
