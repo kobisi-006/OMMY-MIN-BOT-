@@ -26,30 +26,42 @@ app.listen(PORT, () => console.log(`🌍 Server running on port ${PORT}`));
 //  GLOBAL CONFIG
 //==============================//
 global.Config = {
-  owner: "255624236654", // 👈 badilisha namba yako
+  owner: "255624236654", // 👈 weka namba yako hapa
   caption: "🤖 OMMY-MIN-BOT",
-  prefix: "*", // Prefix ya commands
+  prefix: "*", // Prefix ya commands (mfano: *ping)
 };
 
 //==============================//
 //  COMMAND HANDLER SYSTEM
 //==============================//
 global.commands = global.commands || [];
+
 function smd({ pattern, fromMe = false, desc = "" }, callback) {
   global.commands.push({ pattern, fromMe, desc, callback });
 }
-module.exports = { smd };
+
+// 🔄 Export ili plugins zote ziitumie
+module.exports = {
+  smd,
+  Config: global.Config,
+  commands: global.commands
+};
 
 //==============================//
 //  AUTO LOAD PLUGINS
 //==============================//
 const pluginsPath = "./plugins";
 if (!fs.existsSync(pluginsPath)) fs.mkdirSync(pluginsPath);
+
 fs.readdirSync(pluginsPath)
   .filter((file) => file.endsWith(".js"))
   .forEach((file) => {
-    require(`${pluginsPath}/${file}`);
-    console.log("✅ Plugin loaded:", file);
+    try {
+      require(`${pluginsPath}/${file}`);
+      console.log("✅ Plugin loaded:", file);
+    } catch (err) {
+      console.error("❌ Failed to load plugin:", file, err);
+    }
   });
 
 //==============================//
@@ -76,8 +88,7 @@ async function startBot() {
 
     if (connection === "close") {
       const shouldReconnect =
-        lastDisconnect?.error?.output?.statusCode !==
-        DisconnectReason.loggedOut;
+        lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       console.log("⚠️ Connection closed! Reconnecting...");
       if (shouldReconnect) startBot();
     } else if (connection === "open") {
@@ -118,6 +129,12 @@ async function startBot() {
               await sock.sendMessage(
                 from,
                 { image: { url: file }, caption },
+                { quoted: msg }
+              ),
+            sendAudio: async (filePath) =>
+              await sock.sendMessage(
+                from,
+                { audio: { url: filePath }, mimetype: "audio/mp4", ptt: true },
                 { quoted: msg }
               ),
           },
