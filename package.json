@@ -1,19 +1,42 @@
 {
-  "name": "ommy-min-bot",
+  "name": "ben-whittaker-tech-bot",
   "version": "1.0.0",
-  "description": "OMMY-MIN-BOT - WhatsApp bot with plugins, Baileys, and Express keep-alive",
+  "description": "💻 Ben Whittaker Tech WhatsApp Bot - AI, Music, Video, Anti-Delete, Anti-ViewOnce, Bible, and more",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
-  "author": "OMMY",
-  "license": "MIT",
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "baileys",
+    "ai",
+    "music",
+    "video",
+    "antidelete",
+    "antiviewonce",
+    "bible"
+  ],
+  "author": "Ben Whittaker Tech",
+  "license": "GPL-3.0",
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.16",
-    "axios": "^1.12.2",
+    "axios": "^1.6.6",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "fs-extra": "^11.1.1",
+    "qrcode-terminal": "^0.12.0",
+    "cheerio": "^1.0.0-rc.12",
+    "ytdl-core": "^4.11.1",
+    "fluent-ffmpeg": "^2.1.2",
     "node-fetch": "^3.3.2",
-    "qrcode-terminal": "^0.12.0"
+    "moment": "^2.29.4",
+    "google-it": "^1.6.0",
+    "openai": "^4.27.0"
+    // DeepAI API handled via axios (no separate npm package required)
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
   }
 }
