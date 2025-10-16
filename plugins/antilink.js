@@ -1,22 +1,28 @@
+// plugins/antilink.js
 const fs = require("fs");
 const path = require("path");
 const { smd } = require("../index");
 
-const dbPath = path.join(__dirname, "../db/antilink.json");
+// DB folder na file
+const dbFolder = path.join(__dirname, "../db");
+if (!fs.existsSync(dbFolder)) fs.mkdirSync(dbFolder);
+
+const dbPath = path.join(dbFolder, "antilink.json");
 if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify({ groups: {}, warnings: {} }, null, 2));
 
+// Load/Save DB
 function loadDB() {
   return JSON.parse(fs.readFileSync(dbPath));
 }
-
 function saveDB(db) {
   fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 }
 
+// Core function
 async function handleLink(sock, m) {
   const from = m.key.remoteJid;
-  const sender = m.key.participant || m.key.remoteJid;
-  if (!from.endsWith("@g.us")) return;
+  if (!from.endsWith("@g.us")) return; // only groups
+  const sender = m.key.participant || from;
 
   const db = loadDB();
   if (!db.groups[from]) return; // Anti-Link OFF
@@ -35,6 +41,8 @@ async function handleLink(sock, m) {
       saveDB(db);
 
       const remaining = 3 - db.warnings[sender];
+
+      // Send fancy box message
       await sock.sendMessage(from, {
         text: `
 ╭─❮ ⚠️ ANTI-LINK ALERT ❯─☆
@@ -89,7 +97,7 @@ smd({
 
 // Hook into messages.upsert
 smd({
-  pattern: "*",
+  pattern: "message",
   fromMe: false,
   desc: "Internal hook for Anti-Link",
 }, async (msg, args, client) => {
