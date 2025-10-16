@@ -71,7 +71,7 @@ async function startBot() {
 
     const sock = makeWASocket({
       logger: P({ level: "silent" }),
-      printQRInTerminal: true,
+      printQRInTerminal: false,
       auth: state,
       version,
     });
