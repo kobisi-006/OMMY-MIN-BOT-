@@ -1,69 +1,83 @@
 // plugins/antitag.js
-const { smd } = require('../lib/smd');
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
+const { smd } = require("../index");
 
-const dbPath = path.join(__dirname, '../db/antitag.json');
+// DB folder na file
+const dbFolder = path.join(__dirname, "../db");
+if (!fs.existsSync(dbFolder)) fs.mkdirSync(dbFolder);
 
-// 🔄 Load / Save DB
+const dbPath = path.join(dbFolder, "antitag.json");
+if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify({ groups: {} }, null, 2));
+
+// Load/Save DB
 function loadDB() {
-  if (!fs.existsSync(dbPath)) return {};
   return JSON.parse(fs.readFileSync(dbPath));
 }
 function saveDB(db) {
   fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 }
 
-// ⚙️ Command to enable/disable Anti-Tag per group
-smd({
-  pattern: 'antitag',
-  fromMe: true,
-  desc: '🚫 Enable or disable Anti-Tag (prevents tagging owner/admin)'
-}, async (message, match, client) => {
-  const chatId = message.jid;
-  const text = match?.trim()?.toLowerCase();
+// Core function
+async function handleAntiTag(sock, m) {
+  const from = m.key.remoteJid;
+  if (!from.endsWith("@g.us")) return; // only groups
+
   const db = loadDB();
+  if (!db.groups[from]) return; // Anti-Tag OFF
 
-  if (!db[chatId]) db[chatId] = { enabled: false };
-
-  if (text === 'on') {
-    db[chatId].enabled = true;
-    saveDB(db);
-    return await message.reply("✅ Anti-Tag is now *ENABLED* for this group! ⚠️");
-  } else if (text === 'off') {
-    db[chatId].enabled = false;
-    saveDB(db);
-    return await message.reply("❌ Anti-Tag is now *DISABLED* for this group! ✅");
+  try {
+    const mentions = m.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+    if (mentions.length > 0) {
+      // Delete message
+      await sock.sendMessage(from, { delete: m.key });
+      await sock.sendMessage(from, {
+        text: `
+╭─❮ ⚠️ ANTI-TAG ALERT ❯─☆
+│ 🚫 @${m.key.participant.split("@")[0]} attempted to tag!
+│ ❌ Message deleted!
+╰───────────────☆
+🏷️ OMMY-MD 💥
+        `,
+        mentions
+      });
+      console.log(`✅ Anti-Tag deleted a mention in ${from}`);
+    }
+  } catch (e) {
+    console.error("AntiTag Error:", e.message);
   }
+}
 
-  await message.reply(`⚙️ Anti-Tag status: ${db[chatId].enabled ? "ON ✅" : "OFF ❌"}\nUse *.antitag on/off* to toggle.`);
+// Toggle command
+smd({
+  pattern: "antitag",
+  fromMe: true,
+  desc: "⚙️ Toggle Anti-Tag On/Off",
+}, async (msg, args, client) => {
+  const from = msg.key.remoteJid;
+  if (!from.endsWith("@g.us")) return msg.send("❌ Hii command ni kwa group tu!");
+
+  const db = loadDB();
+  const arg = (args[0] || "").toLowerCase();
+
+  if (arg === "on") {
+    db.groups[from] = true;
+    saveDB(db);
+    await msg.send("✅ Anti-Tag activated ✅\n🏷️ OMMY-MD 💥");
+  } else if (arg === "off") {
+    db.groups[from] = false;
+    saveDB(db);
+    await msg.send("⚠️ Anti-Tag deactivated ⚠️\n🏷️ OMMY-MD 💥");
+  } else {
+    await msg.send("⚠️ Usage: *antitag on/off*");
+  }
 });
 
-// 🛡️ Listener for detecting mentions of owner/admin
+// Hook into messages.upsert
 smd({
-  on: 'message'
-}, async (message, match, client) => {
-  const chatId = message.jid;
-  const db = loadDB();
-  if (!db[chatId]?.enabled) return;
-
-  const text = message.message?.conversation || message.message?.extendedTextMessage?.text;
-  if (!text) return;
-
-  const sender = message.sender;
-  const botNumber = client.user?.id || client.user?.jid;
-  const ownerNumber = "255624236654@s.whatsapp.net"; // badilisha na number yako
-  const taggedNumbers = (message.message?.extendedTextMessage?.contextInfo?.mentionedJid || []);
-
-  // ⚠️ Check if owner or bot was tagged
-  if (taggedNumbers.includes(ownerNumber) || taggedNumbers.includes(botNumber)) {
-    // ❌ Delete offending message
-    try { await client.sendMessage(chatId, { delete: message.key }); } catch {}
-
-    // ⚠️ Send warning
-    await client.sendMessage(chatId, {
-      text: `⚠️ @${sender.split('@')[0]} — You are not allowed to tag the bot/owner! ❌`,
-      mentions: [sender]
-    });
-  }
+  pattern: "message",
+  fromMe: false,
+  desc: "Internal hook for Anti-Tag",
+}, async (msg, args, client) => {
+  await handleAntiTag(client, msg);
 });
