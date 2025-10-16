@@ -3,59 +3,69 @@ const fs = require("fs");
 const path = require("path");
 const { smd } = require("../index");
 
-const dbPath = path.join(__dirname, "../db/antimentionstatus.json");
+// DB folder na file
+const dbFolder = path.join(__dirname, "../db");
+if (!fs.existsSync(dbFolder)) fs.mkdirSync(dbFolder);
+
+const dbPath = path.join(dbFolder, "antimentionstatus.json");
 if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify({ groups: {}, warnings: {} }, null, 2));
 
+// Load/Save DB
 function loadDB() {
   return JSON.parse(fs.readFileSync(dbPath));
 }
-
 function saveDB(db) {
   fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 }
 
+// Core function
 async function handleMentionStatus(sock, m) {
   const from = m.key.remoteJid;
   if (!from.endsWith("@g.us")) return; // only groups
-  const sender = m.key.participant || m.key.remoteJid;
-  const db = loadDB();
-  if (!db.groups[from]) return;
+  const sender = m.key.participant || from;
 
-  const mentions = m.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-  if (mentions.length === 0) return;
+  const db = loadDB();
+  if (!db.groups[from]) return; // Anti-Mention OFF
 
   try {
-    // Attempt delete
-    if (m.key?.id) await sock.sendMessage(from, { delete: m.key });
+    const mentions = m.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+    if (mentions.length > 0) {
+      // Delete message
+      await sock.sendMessage(from, { delete: m.key });
 
-    // Add warn
-    db.warnings[sender] = (db.warnings[sender] || 0) + 1;
-    saveDB(db);
+      // Update warnings
+      db.warnings[sender] = (db.warnings[sender] || 0) + 1;
+      saveDB(db);
 
-    const remaining = 3 - db.warnings[sender];
-    await sock.sendMessage(from, {
-      text: `
+      const remaining = 3 - db.warnings[sender];
+
+      // Send fancy box message
+      await sock.sendMessage(from, {
+        text: `
 ╭─❮ ⚠️ ANTI-MENTION STATUS ❯─☆
-│ 🚫 @${sender.split("@")[0]} attempted a mention status!
+│ 🚫 @${sender.split("@")[0]} attempted mention status!
 │ ⚠️ Warnings remaining: ${remaining}/3
 ╰───────────────☆
 🏷️ OMMY-MD 💥
-      `,
-      mentions: [sender]
-    });
-
-    if (db.warnings[sender] >= 3) {
-      await sock.groupParticipantsUpdate(from, [sender], "remove");
-      db.warnings[sender] = 0;
-      saveDB(db);
-      await sock.sendMessage(from, {
-        text: `🚨 @${sender.split("@")[0]} has been removed (3 warns)!`,
+        `,
         mentions: [sender],
       });
+
+      console.log(`✅ Mention status deleted from ${sender} in ${from}`);
+
+      // Kick if 3 warnings reached
+      if (db.warnings[sender] >= 3) {
+        await sock.groupParticipantsUpdate(from, [sender], "remove");
+        await sock.sendMessage(from, {
+          text: `🚨 @${sender.split("@")[0]} has been removed (3 warnings)!`,
+          mentions: [sender],
+        });
+        db.warnings[sender] = 0; // reset
+        saveDB(db);
+      }
     }
-    console.log(`✅ AntiMentionStatus triggered for ${sender}`);
   } catch (e) {
-    console.error("AntiMentionStatus Error:", e);
+    console.error("AntiMentionStatus Error:", e.message);
   }
 }
 
@@ -67,6 +77,7 @@ smd({
 }, async (msg, args, client) => {
   const from = msg.key.remoteJid;
   if (!from.endsWith("@g.us")) return msg.send("❌ Hii command ni kwa group tu!");
+
   const db = loadDB();
   const arg = (args[0] || "").toLowerCase();
 
@@ -85,7 +96,7 @@ smd({
 
 // Hook into messages.upsert
 smd({
-  pattern: ".*",
+  pattern: "message",
   fromMe: false,
   desc: "Internal hook for Anti-MentionStatus",
 }, async (msg, args, client) => {
