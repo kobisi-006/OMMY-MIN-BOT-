@@ -2,17 +2,18 @@
 const { smd } = require('../lib/smd');
 const axios = require('axios');
 
-const STABILITY_API_KEY = "YOUR_STABILITY_API_KEY_HERE"; // weka key yako hapa
+// Weka OpenAI/Stability AI key yako hapa
+const STABILITY_API_KEY = "sk-GPrKV4TIpQ8DHxH5LNbwi5xEIxyVsu47r2SoZrcLjjZbmGuK";
 
 smd({
   pattern: "photo",
   fromMe: false,
-  desc: "🎨 Generate realistic AI image using Stability AI"
+  desc: "🎨 Generate realistic AI image using Stability AI",
 }, async (message, match, client) => {
   try {
     const prompt = match || message.reply_message?.text;
     if (!prompt)
-      return await message.reply('🖌️ Please provide a prompt!\nExample: *!photo a futuristic city in Africa*');
+      return await message.reply('🖌️ Please provide a prompt!\nExample: *photo a futuristic city in Africa*');
 
     if (!STABILITY_API_KEY)
       return await message.reply('❌ Stability AI key missing!');
@@ -42,7 +43,7 @@ smd({
     const imageBuffer = Buffer.from(response.data, 'binary');
     await client.sendMessage(message.jid, {
       image: imageBuffer,
-      caption: `✅ AI Image Generated!\n🎨 Prompt: _${prompt}_\n🤖 Engine: Stability AI`
+      caption: `✅ AI Image Generated!\n🎨 Prompt: _${prompt}_\n🤖 Engine: Stability AI\n🏷️ OMMY-MD 💥`
     }, { quoted: message });
 
     await message.react('✅');
