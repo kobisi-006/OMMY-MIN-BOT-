@@ -1,31 +1,32 @@
-// plugins/grouplink.js
-const { smd } = require('../lib/smd');
+const { smd } = require("../index");
 
 smd({
-  pattern: 'grouplink',
-  fromMe: true,
-  desc: '🔗 Get the group invite link with fancy decoration'
-}, async (message, match, client) => {
+  pattern: "grouplink",
+  fromMe: false,
+  desc: "🔗 Show group invite link with decoration"
+}, async (msg, args, client) => {
+  const from = msg.key.remoteJid;
+  if (!from.endsWith("@g.us")) return msg.send("❌ Hii command ni kwa group tu!");
+
   try {
-    const metadata = await client.groupMetadata(message.jid);
-    if (!metadata) return await message.reply("⚠️ This command works only in groups.");
+    const groupMetadata = await client.groupMetadata(from);
+    const inviteCode = await client.groupInviteCode(from);
+    const participants = groupMetadata.participants.length;
 
-    const inviteCode = metadata.inviteCode || null;
-    if (!inviteCode) return await message.reply("❌ Cannot fetch group link. Make sure bot is admin.");
+    const decoratedMessage = `
+╭─❮ 🔗 GROUP LINK ❯─☆
+│ 🏷️ Group Name: ${groupMetadata.subject}
+│ 👥 Members: ${participants}
+│ 🌐 Invite Link:
+│ https://chat.whatsapp.com/${inviteCode}
+╰───────────────☆
+🏷️ OMMY-MD 💥
+    `;
 
-    const link = `https://chat.whatsapp.com/${inviteCode}`;
-    const text = `
-╭─✦ Group Link ✦─╮
-│ 🏷️ *Group Name:* ${metadata.subject}
-│ 👥 *Members:* ${metadata.participants.length}
-│ 🔗 *Invite Link:* ${link}
-╰─────────────────╯
-✨ *Shared via OMMY-MIN-BOT*`;
+    await msg.send(decoratedMessage);
 
-    await client.sendMessage(message.jid, { text });
-    await message.react("🔗");
-  } catch (err) {
-    console.error("GroupLink Error:", err);
-    await message.reply("❌ Failed to get group link.");
+  } catch (e) {
+    console.error("GroupLink Error:", e);
+    await msg.send("❌ Tatizo kupata group link!");
   }
 });
