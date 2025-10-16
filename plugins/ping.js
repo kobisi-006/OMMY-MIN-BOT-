@@ -5,16 +5,14 @@ const path = require("path");
 smd({
   pattern: "ping",
   fromMe: false,
-  desc: "Check bot speed",
+  desc: "Check bot speed minimal with brand",
 }, async (msg, args, client) => {
   const latency = Date.now() - (msg.messageTimestamp * 1000 || Date.now());
-  const now = new Date();
-  const time = now.toLocaleTimeString();
-  const date = now.toLocaleDateString();
 
   await msg.react("🏓");
   await msg.send("🏓 Checking ping...");
 
+  // Optional audio
   const audioFolder = path.join(__dirname, "../audios");
   if (fs.existsSync(audioFolder)) {
     const files = fs.readdirSync(audioFolder).filter(f => f.endsWith(".mp3"));
@@ -28,11 +26,12 @@ smd({
     }
   }
 
+  // Minimal box showing latency
   await msg.send(`
-╭─❮ 🏓 PING STATUS ❯─☆
+╭─❮ 🏓 PING ❯─☆
 │ ⚡ Speed: ${latency}ms
-│ ⏰ Time: ${time}
-│ 📅 Date: ${date}
-│ 🤖 Status: ✅ Active
-╰───────────────☆`);
+╰─────────────☆`);
+
+  // Brand outside / below the box
+  await msg.send("🏷️ OMMY-MD 💥");
 });
