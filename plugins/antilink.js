@@ -89,7 +89,7 @@ smd({
 
 // Hook into messages.upsert
 smd({
-  pattern: "message",
+  pattern: "*",
   fromMe: false,
   desc: "Internal hook for Anti-Link",
 }, async (msg, args, client) => {
