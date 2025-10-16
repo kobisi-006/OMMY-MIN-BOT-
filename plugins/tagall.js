@@ -1,26 +1,39 @@
-// plugins/tagall.js
-const { smd } = require('../lib/smd');
+const { smd } = require("../index");
 
 smd({
-  pattern: 'tagall',
+  pattern: "tagall",
   fromMe: true,
-  desc: '📢 Mention all group members with fancy decoration'
-}, async (message, match, client) => {
+  desc: "📢 Tag all members in the group (modern decorated style)"
+}, async (msg, args, client) => {
+  const from = msg.key.remoteJid;
+  if (!from.endsWith("@g.us")) return msg.send("❌ Hii command ni kwa group tu!");
+
+  const text = args.join(" ");
+  if (!text) return msg.send("⚠️ Andika message ya kutuma. Mfano: *tagall Hello everyone!*");
+
   try {
-    const group = await client.groupMetadata(message.jid);
-    const members = group.participants.map(p => p.id);
-    const header = "╭───────────────✦\n│ 🔔 *ATTENTION ALL MEMBERS!* 🔔\n╰───────────────✦\n";
-    const footer = "\n✨ *Sent via OMMY-MIN-BOT*";
-    const text = match?.trim() ? `💬 ${match}\n` : "";
-    
-    await client.sendMessage(message.jid, {
-      text: header + text + footer,
-      mentions: members
+    const groupMetadata = await client.groupMetadata(from);
+    const participants = groupMetadata.participants.map(p => p.id);
+
+    // Construct decorated message
+    const decoratedMessage = `
+╭─❮ 📢 TAG ALL ❯─☆
+│ 📝 Message:
+│ ${text}
+│
+│ 💡 Total members: ${participants.length}
+╰───────────────☆
+🏷️ OMMY-MD 💥
+    `;
+
+    await client.sendMessage(from, {
+      text: decoratedMessage,
+      mentions: participants
     });
 
-    await message.react("📣"); // reaction emoji
-  } catch (err) {
-    console.error("TagAll Error:", err);
-    await message.reply("❌ Failed to tag all members.");
+    await msg.send("✅ TagAll successfully sent!\n🏷️ OMMY-MD 💥");
+  } catch (e) {
+    console.error("TagAll Error:", e);
+    await msg.send("❌ Tatizo kutuma tagall.");
   }
 });
