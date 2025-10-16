@@ -1,4 +1,10 @@
 {
-  "groups": {},
-  "users": {}
+  "groups": {
+    "12036304567890@g.us": true,
+    "12036301234567@g.us": false
+  },
+  "warnings": {
+    "12036304567890@s.whatsapp.net": 1,
+    "12036301234567@s.whatsapp.net": 0
+  }
 }
