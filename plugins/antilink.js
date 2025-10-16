@@ -1,96 +1,97 @@
-const { smd } = require("../lib/smd");
+const fs = require("fs");
+const path = require("path");
+const { smd } = require("../index");
 
-const autoKick = true; // true = kick on 4th/5th offense
-const warnMsg = `
-🚨 *ANTI-LINK ALERT!* 🚨
-Ujumbe wako umetambuliwa kama *link* isiyoruhusiwa!
-Tafadhali usitumie link tena, vinginevyo utatolewa kwenye group!`;
+const dbPath = path.join(__dirname, "../db/antilink.json");
+if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify({ groups: {}, users: {} }, null, 2));
 
-global.antilink = global.antilink || {};
-global.antilinkWarns = global.antilinkWarns || {}; // { groupId: { userId: count } }
+function loadDB() {
+  return JSON.parse(fs.readFileSync(dbPath));
+}
 
-// ==============================
-// COMMAND: *antilink on/off
-// ==============================
+function saveDB(db) {
+  fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+}
+
+// Toggle On/Off
 smd({
   pattern: "antilink",
   fromMe: true,
-  desc: "Enable or disable Anti-Link mode in groups"
+  desc: "⚙️ Toggle Anti-Link system On/Off",
 }, async (msg, args, client) => {
-  const option = args[0]?.toLowerCase();
   const from = msg.key.remoteJid;
+  if (!from.endsWith("@g.us")) return msg.send("❌ Hii command ni kwa group tu!");
 
-  if (!from.endsWith("@g.us"))
-    return msg.reply("❌ Command hii inafanya kazi kwenye *Groups* pekee.");
-
-  if (!option)
-    return msg.reply("⚙️ Usage: *antilink on/off*");
-
-  if (option === "on") {
-    global.antilink[from] = true;
-    await msg.react("✅");
-    return msg.reply(`
-🛡️ *Successfully Mode AntiLink Activated!*
-From now, all unwanted links will be deleted automatically ⚔️
-`);
+  const db = loadDB();
+  const arg = (args[0] || "").toLowerCase();
+  if (arg === "on") {
+    db.groups[from] = true;
+    saveDB(db);
+    await msg.send("✅ Anti-Link mode activated for this group\n🏷️ OMMY-MD 💥");
+  } else if (arg === "off") {
+    db.groups[from] = false;
+    saveDB(db);
+    await msg.send("⚠️ Anti-Link mode deactivated for this group\n🏷️ OMMY-MD 💥");
+  } else {
+    await msg.send("⚠️ Usage: *antilink on/off*");
   }
-
-  if (option === "off") {
-    global.antilink[from] = false;
-    await msg.react("🚫");
-    return msg.reply(`
-❌ *AntiLink Mode Deactivated!*
-Links are now allowed in this group 🌐
-`);
-  }
-
-  return msg.reply("⚙️ Usage: *antilink on/off*");
 });
 
-// ==============================
-// AUTO-DETECT LINKS & WARN
-// ==============================
+// Auto-detect links
 smd({
-  on: "message"
+  pattern: "autolink",
+  fromMe: false,
+  desc: "🚫 Auto-delete links & warn",
 }, async (msg, args, client) => {
+  const from = msg.key.remoteJid;
+  const sender = msg.key.participant || msg.key.remoteJid;
+  if (!from.endsWith("@g.us")) return;
+
+  const db = loadDB();
+  if (!db.groups[from]) return; // system off
+
   try {
-    const from = msg.key.remoteJid;
-    if (!from.endsWith("@g.us")) return; // Only groups
-    if (!global.antilink[from]) return;  // Skip if off
-
-    const userId = msg.key.participant;
-    const body =
-      msg.message?.conversation ||
-      msg.message?.extendedTextMessage?.text ||
-      "";
-
-    const linkRegex = /(https?:\/\/|www\.|chat\.whatsapp\.com|telegram\.me|t\.me|instagram\.com|facebook\.com|youtube\.com)/i;
-    if (!linkRegex.test(body)) return;
+    const textMsg = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+    const linkRegex = /(https?:\/\/[^\s]+)/gi;
+    if (!linkRegex.test(textMsg)) return;
 
     // Delete message
     await client.sendMessage(from, { delete: msg.key });
 
-    // Init group warn counter
-    global.antilinkWarns[from] = global.antilinkWarns[from] || {};
-    global.antilinkWarns[from][userId] = (global.antilinkWarns[from][userId] || 0) + 1;
+    // Update warn
+    db.users[from] = db.users[from] || {};
+    db.users[from][sender] = (db.users[from][sender] || 0) + 1;
+    saveDB(db);
+    const warnCount = db.users[from][sender];
 
-    const warns = global.antilinkWarns[from][userId];
+    // Box-style warning
+    const box = `
+╔══════════════════╗
+║ ⚠️ WARN NOTICE
+╠══════════════════╣
+║ 👤 Name : @${sender.split("@")[0]}
+║ ❌ Reason : Sent a link 🚫
+║ 🟡 Warn : ${warnCount}/3
+║ 💥 Deleted by OMMY-MD
+║ 🚫 Do not send links in this group!
+╚══════════════════╝
+    `.trim();
 
-    // Send warning
-    await msg.reply(`${warnMsg}\n⚠️ You have ${warns} warn(s)`);
+    await client.sendMessage(from, { text: box, mentions: [sender] });
 
-    // Kick if exceeds 3 warns (4th or 5th offense)
-    if (autoKick && warns >= 4) {
-      await client.groupParticipantsUpdate(from, [userId], "remove");
+    // Kick if 3 warns
+    if (warnCount >= 3) {
+      await client.groupParticipantsUpdate(from, [sender], "remove");
       await client.sendMessage(from, {
-        text: `👢 @${userId.split("@")[0]} ameondolewa baada ya kutuma link mara ${warns}`,
-        mentions: [userId]
+        text: `🚨 @${sender.split("@")[0]} has been removed (3 warns)!\n🏷️ OMMY-MD 💥`,
+        mentions: [sender]
       });
-      // Reset warn
-      global.antilinkWarns[from][userId] = 0;
+      db.users[from][sender] = 0;
+      saveDB(db);
     }
 
-  } catch (e) {
-    console.log("❌ AntiLink Error:", e);
+    console.log(`✅ AutoLink: deleted & warn issued to ${sender}`);
+  } catch (err) {
+    console.error("❌ AutoLink Error:", err.message);
   }
 });
