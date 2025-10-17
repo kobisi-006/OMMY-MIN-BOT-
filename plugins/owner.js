@@ -1,51 +1,44 @@
-//==============================//
-// 👑 OMMY-MD OWNER COMMAND 👑
-//==============================//
-
 const fs = require("fs");
 const path = require("path");
+const { smd, Config } = require("../index");
 
-module.exports = {
-  name: "owner",
-  description: "💫 Show official owner info stylishly",
-  async execute(sock, m) {
-    try {
-      const ownerJid = "255760317060@s.whatsapp.net"; // 👑 Owner Number
-      const ownerName = "👑 Ommy (BEN WHITTAKER TECH)";
-      const brand = "💫 OMMY-MD SYSTEM";
-      const imagePath = path.join(__dirname, "../audios/OMMY-MD.png");
+const OWNER_PIC = path.join(__dirname, "../audios/OMMY-MD.png");
 
-      // 🔥 Reaction Emoji
-      await sock.sendMessage(m.key.remoteJid, {
-        react: { text: "👑", key: m.key },
-      });
+smd({
+  pattern: "owner",
+  fromMe: false,
+  desc: "👑 Show Bot Owner Info",
+}, async (msg, args, sock) => {
+  try {
+    // React emoji
+    await msg.react("👑");
 
-      // 🖼️ Stylish Caption
-      const caption = `
-╭──────────────◆
-│ 👑 *OFFICIAL BOT OWNER*
-│
-│ 💫 *Name:* ${ownerName}
-│ 📞 *Number:* wa.me/255624236654
-│ 🏷️ *Brand:* ${brand}
-│ 💻 *Developer:* Ommy
-│ 🔰 *Power:* BEN WHITTAKER TECH
-│
-│  ✨ "Code like a King 👑, Rule with AI 🤖"
-╰────────────────◆
+    // Get bot groups info
+    const groups = await sock.groupFetchAllParticipating();
+    const totalGroups = Object.keys(groups).length;
+
+    // Message box with bold text
+    const text = `
+╭─👑 *OMMY-MD BOT OWNER* ──╮
+│ 🤖 *Bot Name:* *${Config.caption}*
+│ 📱 *Owner:* *${Config.owner}*
+│ 🌐 *Total Groups:* *${totalGroups}*
+│ ⚡ *Version:* *v2.5 Pro*
+╰─────────────────────╯
 `;
 
-      // 🖼️ Send image with caption
-      await sock.sendMessage(m.key.remoteJid, {
-        image: fs.readFileSync(imagePath),
-        caption,
+    // Send message with image
+    if (fs.existsSync(OWNER_PIC)) {
+      await sock.sendMessage(msg.key.remoteJid, {
+        image: { url: OWNER_PIC },
+        caption: text
       });
-
-    } catch (error) {
-      console.error("❌ Owner command error:", error);
-      await sock.sendMessage(m.key.remoteJid, {
-        text: "⚠️ Samahani, hitilafu imejitokeza wakati wa kuonyesha taarifa za owner.",
-      });
+    } else {
+      await msg.send(text);
     }
-  },
-};
+
+  } catch (e) {
+    console.error("❌ Owner Command Error:", e.message);
+    await msg.send("❌ *Failed to fetch owner info!*");
+  }
+});
