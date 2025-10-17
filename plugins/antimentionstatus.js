@@ -1,18 +1,13 @@
-//═══════════════════════════════════════════════//
-// ⚡ OMMY-MD ANTI-MENTION STATUS PRO (SHORT BOX)
-//═══════════════════════════════════════════════//
-
 const fs = require("fs");
 const path = require("path");
+const { smd } = require("../index");
 
-// Database
 const dbPath = path.join(__dirname, "../db/antimentionstatus.json");
 if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify({ groups: {}, logs: {} }, null, 2));
 
 const loadDB = () => JSON.parse(fs.readFileSync(dbPath));
-const saveDB = (db) => fs.writeFileSync(dbPath, JSON.stringify(db, null, 2, "\t"));
+const saveDB = (db) => fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 
-// Core handler
 async function handleMentionStatus(sock, m) {
   const from = m.key.remoteJid;
   if (!from.endsWith("@g.us")) return;
@@ -21,25 +16,22 @@ async function handleMentionStatus(sock, m) {
   if (!db.groups[from]) return;
 
   const mentions = m.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-  if (mentions.length === 0) return;
+  if (!mentions.length) return;
 
   const sender = m.key.participant || m.key.remoteJid;
   db.logs[sender] = (db.logs[sender] || 0) + 1;
   saveDB(db);
 
-  // Simple decorated box
   const alertMsg = `
 ╭─❌ *ANTI-MENTION* ❌─╮
 │ User: @${sender.split("@")[0]}
 │ Warnings: ${db.logs[sender]}/3
 ╰───────────────────╯`;
 
-  // Delete mention
   await sock.sendMessage(from, { delete: m.key });
   await sock.sendMessage(from, { text: alertMsg, mentions });
   await sock.sendMessage(from, { react: { text: "❌", key: m.key } });
 
-  // Kick if 3 warnings
   const metadata = await sock.groupMetadata(from).catch(() => null);
   const botNumber = sock.user.id.split(":")[0] + "@s.whatsapp.net";
   const isBotAdmin = metadata?.participants?.some(p => p.id === botNumber && p.admin);
@@ -51,13 +43,7 @@ async function handleMentionStatus(sock, m) {
   }
 }
 
-// Command toggle
-const { smd } = require("../index");
-smd({
-  pattern: "antimentionstatus",
-  fromMe: true,
-  desc: "Toggle Anti-MentionStatus PRO short box",
-}, async (msg, args) => {
+smd({ pattern: "antimentionstatus", fromMe: true, desc: "Toggle Anti-MentionStatus" }, async (msg, args) => {
   const from = msg.key.remoteJid;
   if (!from.endsWith("@g.us")) return msg.send("❌ Only groups!");
 
@@ -73,15 +59,10 @@ smd({
     saveDB(db);
     await msg.send("⚠️ Anti-Mention OFF");
   } else {
-    await msg.send("💡 Usage: *antimentionstatus on/off*");
+    await msg.send("💡 Usage: antimentionstatus on/off");
   }
 });
 
-// Hook messages
-smd({
-  pattern: "message",
-  fromMe: false,
-  desc: "Internal hook for Anti-MentionStatus PRO short box",
-}, async (msg, _, client) => {
-  await handleMentionStatus(client, msg);
+smd({ pattern: "message", fromMe: false, desc: "Internal hook for Anti-MentionStatus" }, async (msg, _, sock) => {
+  await handleMentionStatus(sock, msg);
 });
