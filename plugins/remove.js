@@ -7,7 +7,8 @@ smd({
 }, async (msg, args, sock) => {
   try {
     const from = msg.key.remoteJid;
-    if (!from.endsWith("@g.us")) return msg.send("❌ *This command works only in groups!*");
+    if (!from.endsWith("@g.us"))
+      return msg.send("❌ *This command works only in groups!*");
 
     const replyMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
     if (!replyMsg) return msg.send("⚠️ *Reply to a user to remove them!*");
@@ -17,11 +18,22 @@ smd({
     // Get group metadata
     const metadata = await sock.groupMetadata(from);
     const botNumber = sock.user.id.split(":")[0] + "@s.whatsapp.net";
-    const isBotAdmin = metadata.participants.some(p => p.id === botNumber && p.admin);
-    const isSenderAdmin = metadata.participants.some(p => p.id === msg.key.participant && p.admin);
 
-    if (!isBotAdmin) return msg.send("❌ *I need to be an admin to remove members!*");
-    if (!isSenderAdmin) return msg.send("⚠️ *You need to be admin to use this command!*");
+    const botParticipant = metadata.participants.find(p => p.id === botNumber);
+    const senderParticipant = metadata.participants.find(p => p.id === msg.key.participant);
+    const targetParticipant = metadata.participants.find(p => p.id === target);
+
+    const isBotAdmin = botParticipant?.admin !== null && botParticipant?.admin !== undefined;
+    const isSenderAdmin = senderParticipant?.admin !== null && senderParticipant?.admin !== undefined;
+
+    if (!isBotAdmin)
+      return msg.send("❌ *I need to be an admin to remove members!*");
+
+    if (!isSenderAdmin)
+      return msg.send("⚠️ *You must be admin to use this command!*");
+
+    if (targetParticipant?.admin !== null && targetParticipant?.admin !== undefined)
+      return msg.send("⚠️ *Cannot remove another admin!*");
 
     await sock.groupParticipantsUpdate(from, [target], "remove");
 
@@ -35,7 +47,7 @@ smd({
     await sock.sendMessage(from, { text, mentions: [target] });
 
   } catch (e) {
-    console.error("❌ Remove Command Error:", e.message);
+    console.error("❌ Remove Command Error:", e);
     await msg.send("❌ *Failed to remove user!*");
   }
 });
