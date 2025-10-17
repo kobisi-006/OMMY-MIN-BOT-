@@ -1,28 +1,55 @@
-const { smd } = require("../index");
+//═══════════════════════════════════════════════//
+// 💠 OMMY-MD ULTRA PRO HIDETAG
+// 👑 Developer: Ben Whittaker
+// 🧠 Function: Silent broadcast with hidden mentions
+//═══════════════════════════════════════════════//
 
-smd({
-  pattern: "hidetag",
-  fromMe: true,
-  desc: "🕵️ Send a message to everyone without showing mentions"
-}, async (msg, args, client) => {
-  const from = msg.key.remoteJid;
-  if (!from.endsWith("@g.us")) return msg.send("❌ Hii command ni kwa group tu!");
+module.exports = {
+  name: "hidetag",
+  description: "💠 Send a stylish hidden tag message to all group members",
+  
+  async execute(sock, m, args) {
+    try {
+      const from = m.key.remoteJid;
+      if (!from.endsWith("@g.us"))
+        return m.reply("⚠️ This command only works in groups!");
 
-  const text = args.join(" ");
-  if (!text) return msg.send("⚠️ Andika kitu cha kutuma. Mfano: *hidetag Hello all!*");
+      const groupMetadata = await sock.groupMetadata(from);
+      const participants = groupMetadata.participants.map((p) => p.id);
+      const sender = m.pushName || "👤 Anonymous";
+      const text = args.join(" ") || "✨ No message provided!";
 
-  try {
-    const groupMetadata = await client.groupMetadata(from);
-    const participants = groupMetadata.participants.map(p => p.id);
+      // 💫 Auto React
+      await sock.sendMessage(from, {
+        react: { text: "💫", key: m.key },
+      });
 
-    await client.sendMessage(from, {
-      text: text,
-      mentions: participants // includes everyone but no visible tag
-    });
+      // 🌈 Stylish OMMY-MD Decorated Message
+      const caption = `
+╭───❖ 🌐 *OMMY-MD HIDETAG SYSTEM* ❖───╮
+│
+│ 🧠 *From:* ${sender}
+│ 💬 *Message:* ${text}
+│
+│ ⚙️ *Mode:* Hidden Tag (All Members)
+│ 🕶️ *Visibility:* Mentions only
+│
+╰───────────────────────────────╯
+💠 *Powered By:* ᴏᴍᴍʏ-ᴍᴅ ʙʀᴀɴᴅ™
+✨ *Innovation in Every Command* ✨
+`;
 
-    await msg.send("✅ Hidetag sent!\n🏷️ OMMY-MD 💥");
-  } catch (e) {
-    console.error("Hidetag Error:", e);
-    await msg.send("❌ Tatizo kutuma hidetag.");
-  }
-});
+      // 🛰️ Send message tagging all silently
+      await sock.sendMessage(from, {
+        text: caption,
+        mentions: participants,
+      });
+
+    } catch (err) {
+      console.error("❌ HIDETAG Error:", err);
+      await sock.sendMessage(m.key.remoteJid, {
+        text: "⚠️ Error while sending hidden tag message.",
+      });
+    }
+  },
+};
