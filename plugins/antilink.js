@@ -1,12 +1,7 @@
-//═══════════════════════════════════════════════//
-// 🚫 OMMY-MD ANTI-LINK SYSTEM (ENGLISH PRO v2.3)
-// 👑 Developer: Ben Whittaker (OMMY-MD BRAND)
-//═══════════════════════════════════════════════//
-
 const fs = require("fs");
 const path = require("path");
+const { smd } = require("../index");
 
-// Database
 const dbPath = path.join(__dirname, "../db/antilink.json");
 if (!fs.existsSync(dbPath))
   fs.writeFileSync(dbPath, JSON.stringify({ groups: {}, warns: {} }, null, 2));
@@ -14,94 +9,68 @@ if (!fs.existsSync(dbPath))
 const loadDB = () => JSON.parse(fs.readFileSync(dbPath));
 const saveDB = (db) => fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 
-// Deep detection for links
-const linkRegex = /(https?:\/\/)?(www\.)?([a-z0-9-]+\.)?(chat\.whatsapp\.com|discord\.gg|t\.me|telegram\.me|instagram\.com|youtu\.be|youtube\.com|tiktok\.com|facebook\.com|fb\.me|bit\.ly|tinyurl\.com|linktr\.ee)/gi;
+const linkRegex = /(https?:\/\/)?(www\.)?(chat\.whatsapp\.com|t\.me|discord\.gg|instagram\.com|youtu\.be|youtube\.com|tiktok\.com|bit\.ly)/gi;
 
-module.exports = {
-  name: "antilink",
-  description: "⚙️ Enable/disable Anti-Link protection in groups",
+async function handleLink(sock, m) {
+  const from = m.key.remoteJid;
+  const sender = m.key.participant || m.key.remoteJid;
+  if (!from.endsWith("@g.us")) return;
 
-  async execute(sock, m, args) {
-    const from = m.key.remoteJid;
-    if (!from.endsWith("@g.us"))
-      return sock.sendMessage(from, { text: "❌ This command works only in groups!" });
+  const db = loadDB();
+  if (!db.groups[from]) return;
 
-    const db = loadDB();
-    const cmd = (args[0] || "").toLowerCase();
+  const text =
+    m.message.conversation ||
+    m.message.extendedTextMessage?.text ||
+    "";
+  if (!text || !linkRegex.test(text)) return;
 
-    if (cmd === "on") {
-      db.groups[from] = true;
-      saveDB(db);
-      await sock.sendMessage(from, { text: "✅ *Anti-Link enabled!* 🛡️ OMMY-MD Protection active." });
-    } else if (cmd === "off") {
-      db.groups[from] = false;
-      saveDB(db);
-      await sock.sendMessage(from, { text: "⚠️ *Anti-Link disabled!* Links will not be deleted." });
-    } else {
-      await sock.sendMessage(from, { text: "💡 Usage:\n• antilink on — enable\n• antilink off — disable" });
-    }
-  },
+  const metadata = await sock.groupMetadata(from).catch(() => null);
+  const botNumber = sock.user.id.split(":")[0] + "@s.whatsapp.net";
+  const isBotAdmin = metadata?.participants?.some((p) => p.id === botNumber && p.admin);
 
-  async onMessage(sock, m) {
-    try {
-      const from = m.key.remoteJid;
-      const sender = m.key.participant || m.key.remoteJid;
-      if (!from.endsWith("@g.us")) return;
+  db.warns[sender] = (db.warns[sender] || 0) + 1;
+  saveDB(db);
 
-      const db = loadDB();
-      if (!db.groups[from]) return; // OFF
+  const remaining = 3 - db.warns[sender];
 
-      const text =
-        m.message?.conversation ||
-        m.message?.extendedTextMessage?.text ||
-        m.message?.imageMessage?.caption ||
-        "";
+  const alertMsg = `
+╭─❌ *ANTI-LINK ALERT* ❌─╮
+│ User: @${sender.split("@")[0]}
+│ Warnings: ${db.warns[sender]}/3
+╰─────────────────────╯`;
 
-      if (!text || !linkRegex.test(text)) return;
+  if (isBotAdmin) await sock.sendMessage(from, { delete: m.key });
+  await sock.sendMessage(from, { text: alertMsg, mentions: [sender] });
+  await sock.sendMessage(from, { react: { text: "🚫", key: m.key } });
 
-      // Group metadata
-      const metadata = await sock.groupMetadata(from).catch(() => null);
-      const botNumber = sock.user.id.split(":")[0] + "@s.whatsapp.net";
-      const isBotAdmin = metadata?.participants?.some((p) => p.id === botNumber && p.admin);
+  if (db.warns[sender] >= 3 && isBotAdmin) {
+    await sock.groupParticipantsUpdate(from, [sender], "remove");
+    db.warns[sender] = 0;
+    saveDB(db);
+  }
+}
 
-      // Increment warnings
-      db.warns[sender] = (db.warns[sender] || 0) + 1;
-      saveDB(db);
-      const remaining = 3 - db.warns[sender];
+smd({ pattern: "antilink", fromMe: true, desc: "Toggle Anti-Link" }, async (msg, args) => {
+  const from = msg.key.remoteJid;
+  if (!from.endsWith("@g.us")) return msg.send("❌ Only groups!");
 
-      // Alert box
-      const alertMsg = `
-╭───🚨 ANTI-LINK ALERT 🚨───╮
-│ 🔗 Link detected!
-│ 👤 @${sender.split("@")[0]}
-│ ⚠️ Warning: ${db.warns[sender]}/3
-│ ⏳ Warnings left: ${remaining}
-╰────────────────────────╯
-💎 OMMY-MD Protection
-`;
+  const db = loadDB();
+  const cmd = (args[0] || "").toLowerCase();
 
-      // React emoji
-      await sock.sendMessage(from, { react: { text: "🚫", key: m.key } });
+  if (cmd === "on") {
+    db.groups[from] = true;
+    saveDB(db);
+    await msg.send("✅ Anti-Link ON");
+  } else if (cmd === "off") {
+    db.groups[from] = false;
+    saveDB(db);
+    await msg.send("⚠️ Anti-Link OFF");
+  } else {
+    await msg.send("💡 Usage: antilink on/off");
+  }
+});
 
-      // Delete if bot admin
-      if (isBotAdmin) await sock.sendMessage(from, { delete: m.key });
-
-      // Send alert
-      await sock.sendMessage(from, { text: alertMsg, mentions: [sender] });
-
-      // Kick after 3 warnings
-      if (db.warns[sender] >= 3) {
-        if (isBotAdmin) {
-          await sock.groupParticipantsUpdate(from, [sender], "remove");
-          await sock.sendMessage(from, { text: `🚷 @${sender.split("@")[0]} removed after 3 warnings!`, mentions: [sender] });
-        } else {
-          await sock.sendMessage(from, { text: `⚠️ @${sender.split("@")[0]} reached 3 warnings but bot is not admin!`, mentions: [sender] });
-        }
-        db.warns[sender] = 0;
-        saveDB(db);
-      }
-    } catch (e) {
-      console.error("❌ Anti-Link Error:", e.message);
-    }
-  },
-};
+smd({ pattern: "message", fromMe: false, desc: "Internal hook for Anti-Link" }, async (msg, _, sock) => {
+  await handleLink(sock, msg);
+});
