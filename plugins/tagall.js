@@ -1,39 +1,58 @@
-const { smd } = require("../index");
+//═══════════════════════════════════════════════//
+// 💠 OMMY-MD PRO TAGALL
+// 👑 Developer: Ben Whittaker
+// 🌐 Function: Tag everyone in a beautiful style
+//═══════════════════════════════════════════════//
 
-smd({
-  pattern: "tagall",
-  fromMe: true,
-  desc: "📢 Tag all members in the group (modern decorated style)"
-}, async (msg, args, client) => {
-  const from = msg.key.remoteJid;
-  if (!from.endsWith("@g.us")) return msg.send("❌ Hii command ni kwa group tu!");
+module.exports = {
+  name: "tagall",
+  description: "📢 Mention all group members in a stylish format",
 
-  const text = args.join(" ");
-  if (!text) return msg.send("⚠️ Andika message ya kutuma. Mfano: *tagall Hello everyone!*");
+  async execute(sock, m, args) {
+    try {
+      const from = m.key.remoteJid;
+      if (!from.endsWith("@g.us"))
+        return m.reply("⚠️ Hii command inafanya kazi kwenye group pekee!");
 
-  try {
-    const groupMetadata = await client.groupMetadata(from);
-    const participants = groupMetadata.participants.map(p => p.id);
+      const groupMetadata = await sock.groupMetadata(from);
+      const participants = groupMetadata.participants.map((p) => p.id);
+      const sender = m.pushName || "👤 Anonymous";
+      const message = args.join(" ") || "📢 Announcement kwa wote!";
 
-    // Construct decorated message
-    const decoratedMessage = `
-╭─❮ 📢 TAG ALL ❯─☆
-│ 📝 Message:
-│ ${text}
+      // 💫 Auto React before sending
+      await sock.sendMessage(from, {
+        react: { text: "🚀", key: m.key },
+      });
+
+      // 🌈 Stylish decorated announcement
+      const caption = `
+╭───────────────❖───────────────╮
+│    💎 *OMMY-MD GLOBAL TAG SYSTEM* 💎
+│───────────────────────────────
+│ 👑 *From:* ${sender}
+│ 💬 *Message:* ${message}
 │
-│ 💡 Total members: ${participants.length}
-╰───────────────☆
-🏷️ OMMY-MD 💥
-    `;
+│ 👥 *Total Members:* ${participants.length}
+│ 🔔 *Mode:* Public Tag (Visible Mentions)
+│
+│ 🧠 *Note:* Respect the chat rules ⚠️
+│───────────────────────────────
+│ 💠 *Powered by:* ᴏᴍᴍʏ-ᴍᴅ ʙʀᴀɴᴅ™
+│ ✨ *Innovation in Every Command*
+╰───────────────────────────────╯
+`;
 
-    await client.sendMessage(from, {
-      text: decoratedMessage,
-      mentions: participants
-    });
+      // 🛰️ Send message with public mentions
+      await sock.sendMessage(from, {
+        text: caption,
+        mentions: participants,
+      });
 
-    await msg.send("✅ TagAll successfully sent!\n🏷️ OMMY-MD 💥");
-  } catch (e) {
-    console.error("TagAll Error:", e);
-    await msg.send("❌ Tatizo kutuma tagall.");
-  }
-});
+    } catch (err) {
+      console.error("❌ TAGALL Error:", err);
+      await sock.sendMessage(m.key.remoteJid, {
+        text: "⚠️ Error occurred while tagging everyone.",
+      });
+    }
+  },
+};
