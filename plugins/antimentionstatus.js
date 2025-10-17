@@ -1,104 +1,87 @@
-// plugins/antimentionstatus.js
+//═══════════════════════════════════════════════//
+// ⚡ OMMY-MD ANTI-MENTION STATUS PRO (SHORT BOX)
+//═══════════════════════════════════════════════//
+
 const fs = require("fs");
 const path = require("path");
-const { smd } = require("../index");
 
-// DB folder na file
-const dbFolder = path.join(__dirname, "../db");
-if (!fs.existsSync(dbFolder)) fs.mkdirSync(dbFolder);
+// Database
+const dbPath = path.join(__dirname, "../db/antimentionstatus.json");
+if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify({ groups: {}, logs: {} }, null, 2));
 
-const dbPath = path.join(dbFolder, "antimentionstatus.json");
-if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify({ groups: {}, warnings: {} }, null, 2));
+const loadDB = () => JSON.parse(fs.readFileSync(dbPath));
+const saveDB = (db) => fs.writeFileSync(dbPath, JSON.stringify(db, null, 2, "\t"));
 
-// Load/Save DB
-function loadDB() {
-  return JSON.parse(fs.readFileSync(dbPath));
-}
-function saveDB(db) {
-  fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
-}
-
-// Core function
+// Core handler
 async function handleMentionStatus(sock, m) {
   const from = m.key.remoteJid;
-  if (!from.endsWith("@g.us")) return; // only groups
-  const sender = m.key.participant || from;
+  if (!from.endsWith("@g.us")) return;
 
   const db = loadDB();
-  if (!db.groups[from]) return; // Anti-Mention OFF
+  if (!db.groups[from]) return;
 
-  try {
-    const mentions = m.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-    if (mentions.length > 0) {
-      // Delete message
-      await sock.sendMessage(from, { delete: m.key });
+  const mentions = m.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+  if (mentions.length === 0) return;
 
-      // Update warnings
-      db.warnings[sender] = (db.warnings[sender] || 0) + 1;
-      saveDB(db);
+  const sender = m.key.participant || m.key.remoteJid;
+  db.logs[sender] = (db.logs[sender] || 0) + 1;
+  saveDB(db);
 
-      const remaining = 3 - db.warnings[sender];
+  // Simple decorated box
+  const alertMsg = `
+╭─❌ *ANTI-MENTION* ❌─╮
+│ User: @${sender.split("@")[0]}
+│ Warnings: ${db.logs[sender]}/3
+╰───────────────────╯`;
 
-      // Send fancy box message
-      await sock.sendMessage(from, {
-        text: `
-╭─❮ ⚠️ ANTI-MENTION STATUS ❯─☆
-│ 🚫 @${sender.split("@")[0]} attempted mention status!
-│ ⚠️ Warnings remaining: ${remaining}/3
-╰───────────────☆
-🏷️ OMMY-MD 💥
-        `,
-        mentions: [sender],
-      });
+  // Delete mention
+  await sock.sendMessage(from, { delete: m.key });
+  await sock.sendMessage(from, { text: alertMsg, mentions });
+  await sock.sendMessage(from, { react: { text: "❌", key: m.key } });
 
-      console.log(`✅ Mention status deleted from ${sender} in ${from}`);
+  // Kick if 3 warnings
+  const metadata = await sock.groupMetadata(from).catch(() => null);
+  const botNumber = sock.user.id.split(":")[0] + "@s.whatsapp.net";
+  const isBotAdmin = metadata?.participants?.some(p => p.id === botNumber && p.admin);
 
-      // Kick if 3 warnings reached
-      if (db.warnings[sender] >= 3) {
-        await sock.groupParticipantsUpdate(from, [sender], "remove");
-        await sock.sendMessage(from, {
-          text: `🚨 @${sender.split("@")[0]} has been removed (3 warnings)!`,
-          mentions: [sender],
-        });
-        db.warnings[sender] = 0; // reset
-        saveDB(db);
-      }
-    }
-  } catch (e) {
-    console.error("AntiMentionStatus Error:", e.message);
+  if (db.logs[sender] >= 3 && isBotAdmin) {
+    await sock.groupParticipantsUpdate(from, [sender], "remove");
+    db.logs[sender] = 0;
+    saveDB(db);
   }
 }
 
-// Toggle command
+// Command toggle
+const { smd } = require("../index");
 smd({
   pattern: "antimentionstatus",
   fromMe: true,
-  desc: "⚙️ Toggle Anti-MentionStatus On/Off",
-}, async (msg, args, client) => {
+  desc: "Toggle Anti-MentionStatus PRO short box",
+}, async (msg, args) => {
   const from = msg.key.remoteJid;
-  if (!from.endsWith("@g.us")) return msg.send("❌ Hii command ni kwa group tu!");
+  if (!from.endsWith("@g.us")) return msg.send("❌ Only groups!");
 
   const db = loadDB();
-  const arg = (args[0] || "").toLowerCase();
+  const cmd = (args[0] || "").toLowerCase();
 
-  if (arg === "on") {
+  if (cmd === "on") {
     db.groups[from] = true;
     saveDB(db);
-    await msg.send("✅ Anti-MentionStatus activated ✅\n🏷️ OMMY-MD 💥");
-  } else if (arg === "off") {
+    await msg.send("✅ Anti-Mention ON");
+  } else if (cmd === "off") {
     db.groups[from] = false;
     saveDB(db);
-    await msg.send("⚠️ Anti-MentionStatus deactivated ⚠️\n🏷️ OMMY-MD 💥");
+    await msg.send("⚠️ Anti-Mention OFF");
   } else {
-    await msg.send("⚠️ Usage: *antimentionstatus on/off*");
+    await msg.send("💡 Usage: *antimentionstatus on/off*");
   }
 });
 
-// Hook into messages.upsert
+// Hook messages
 smd({
   pattern: "message",
   fromMe: false,
-  desc: "Internal hook for Anti-MentionStatus",
-}, async (msg, args, client) => {
+  desc: "Internal hook for Anti-MentionStatus PRO short box",
+}, async (msg, _, client) => {
   await handleMentionStatus(client, msg);
 });
