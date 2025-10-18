@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { smd } = require("../index"); // ⚡ Command handler
 
 module.exports = {
   name: "menu",
@@ -28,19 +29,20 @@ module.exports = {
 
       // === Fancy Menu Header ===
       let menuMessage = `
-╭───────────────────◆
-│  💠 *${global.botname || "Ben Whittaker Tech Bot"}*
+╭─💎──────────────────╮
+│  💠 *${global.botname || "OMMY-MD Bot"}*
 │  ⚙️ Prefix: ${prefix}
-│  👑 Owner: ${global.owner || "255760317060"}
+│  👑 Owner: ${global.owner || "255624236654"}
 │  📆 ${new Date().toLocaleDateString()}
-╰───────────────────◆
+╰─────────────────────╯
 
 📂 *Command Categories*
 `;
 
       // === Build Category Sections ===
       for (const cat in categories) {
-        menuMessage += `\n┌───「 *${cat.toUpperCase()}* 」───💎\n`;
+        if (categories[cat].length === 0) continue;
+        menuMessage += `\n┌─「 *${cat.toUpperCase()}* 」───💎\n`;
         categories[cat].forEach(cmd => {
           menuMessage += `│ 💠 *${prefix}${cmd.name}* → ${cmd.desc}\n`;
         });
@@ -62,3 +64,12 @@ module.exports = {
     }
   },
 };
+
+// Register command with smd
+smd({
+  pattern: "menu",
+  fromMe: true,
+  desc: "💎 Show all commands by category",
+}, async (msg, args, sock) => {
+  await module.exports.execute(sock, msg, global.Config.prefix);
+});
