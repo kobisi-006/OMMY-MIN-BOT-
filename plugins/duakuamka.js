@@ -1,17 +1,18 @@
-module.exports = {
-  name: "duakuamka",
-  description: "🌅 Dua ya kuamka kutoka usingizini",
-  async execute(sock, m) {
-    const dua = `
-🌅 *DUA YA KUAMKA* 🌅
+// plugins/duakuamka.js
+const { smd } = require("../index");
 
-الْـحَمْدُ لِلّٰهِ الَّذِي أَحْيَانَا بَعْدَ مَا أَمَاتَنَا وَإِلَيْهِ النُّشُورُ  
-*Alhamdu lillaahil-ladhi ahyaanaa ba'da maa amaatanaa wa ilayhin-nushoor.*
+smd({
+  pattern: "duakuamka",
+  fromMe: false,
+  desc: "🌅 Send Dua for waking up",
+}, async (msg, args, client) => {
+  const dua = `🌅 *Dua ya Kuamka* 🌅
 
-💬 Maana: “Sifa njema zote ni za Mwenyezi Mungu, ambaye ametufufua baada ya kutulaza, na kwake ndiko marejeo.”
+اَلْحَمْدُ لِلّٰهِ الَّذِي أَحْيَانَا بَعْدَ مَا أَمَاتَنَا وَإِلَيْهِ النُّشُورُ
+*Alhamdu lillahi allathee ahyana ba'da ma amatana wa ilayhin-nushoor.*
 
-☀️ _Soma dua hii unapofumbua macho asubuhi._
-`;
-    await sock.sendMessage(m.key.remoteJid, { text: dua }, { quoted: m });
-  }
-};
+💡 Tafsiri:
+"Sifa zote ni za Allah, ambaye ametufufua baada ya kutufanya tuwe wafu, na kwa Yeye tutarejea."`;
+
+  await msg.send(dua);
+});
