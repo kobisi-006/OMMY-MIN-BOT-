@@ -1,51 +1,40 @@
-const { smd } = require("../index");
+// plugins/kick.js
+const { smd, Config } = require("../index");
 
 smd({
   pattern: "kick",
-  fromMe: true,
-  desc: "👑 Kick one user by reply",
-}, async (msg, args, sock) => {
+  fromMe: true, // only owner can use
+  desc: "🚷 Kick a member from the group (one by one)",
+}, async (msg, args, client) => {
   try {
     const from = msg.key.remoteJid;
-    if (!from.endsWith("@g.us"))
-      return msg.send("❌ *This command works only in groups!*");
+    if (!from.endsWith("@g.us")) return msg.send("❌ This command works only in groups!");
 
-    const metadata = await sock.groupMetadata(from);
-    const botNumber = sock.user.id.split(":")[0] + "@s.whatsapp.net";
-    const senderNumber = msg.key.participant || msg.key.remoteJid;
+    const metadata = await client.groupMetadata(from);
+    const sender = msg.key.participant || msg.key.remoteJid;
+    const botNumber = client.user.id.split(":")[0] + "@s.whatsapp.net";
 
-    const botParticipant = metadata.participants.find(p => p.id === botNumber);
-    const senderParticipant = metadata.participants.find(p => p.id === senderNumber);
+    // Check if bot is admin
+    const isBotAdmin = metadata.participants.some(p => p.id === botNumber && p.admin);
+    if (!isBotAdmin) return msg.send("❌ I am not admin, cannot kick members.");
 
-    const isBotAdmin = botParticipant?.admin !== null && botParticipant?.admin !== undefined;
-    const isSenderAdmin = senderParticipant?.admin !== null && senderParticipant?.admin !== undefined;
-
-    if (!isBotAdmin) return msg.send("❌ *I need admin rights to kick members!*");
-    if (!isSenderAdmin) return msg.send("⚠️ *You must be admin to use this command!*");
-
-    // Get the target from reply
-    const replyMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-    if (!replyMsg) return msg.send("⚠️ *Reply to the user you want to kick!*");
+    // Check if user replied to someone
+    const reply = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+    if (!reply) return msg.send("⚠️ Reply to a user's message to kick them.");
 
     const target = msg.message.extendedTextMessage.contextInfo.participant;
-    const participant = metadata.participants.find(p => p.id === target);
-    if (participant?.admin !== null && participant?.admin !== undefined)
-      return msg.send("⚠️ *Cannot kick an admin!*");
+    const targetName = target.split("@")[0];
 
-    // Kick the user
-    await sock.groupParticipantsUpdate(from, [target], "remove");
+    // Check if target is admin
+    const isTargetAdmin = metadata.participants.some(p => p.id === target && p.admin);
+    if (isTargetAdmin) return msg.send("⚠️ Cannot kick an admin.");
 
-    // Send result
-    const text = `
-╭─🚷 *KICK SUCCESS* 🚷─╮
-│ ✅ Kicked: @${target.split("@")[0]}
-╰───────────────────╯
-💎 *OMMY-MD BOT*
-    `;
-    await sock.sendMessage(from, { text, mentions: [target] });
+    // Kick user
+    await client.groupParticipantsUpdate(from, [target], "remove");
+    await msg.send(`🚷 User @${targetName} has been kicked successfully!\n🏷️ OMMY-MD 💥`, { mentions: [target] });
 
-  } catch (e) {
-    console.error("❌ Kick Command Error:", e);
-    await msg.send("❌ *Failed to kick user!*");
+  } catch (err) {
+    console.error("Kick Error:", err);
+    await msg.send("❌ Error executing kick command.");
   }
 });
