@@ -1,17 +1,18 @@
-module.exports = {
-  name: "duakulala",
-  description: "🌙 Dua ya kulala kabla ya usingizi",
-  async execute(sock, m) {
-    const dua = `
-🌙 *DUA YA KULALA* 🌙
+// plugins/duakulala.js
+const { smd } = require("../index");
 
-بِاسْمِكَ اللّٰهُمَّ أَحْيَا وَبِاسْمِكَ أَمُوتُ  
-*Bismika Allahumma ahya wa bismika amut.*
+smd({
+  pattern: "duakulala",
+  fromMe: false,
+  desc: "🌙 Send Dua for sleeping",
+}, async (msg, args, client) => {
+  const dua = `🌙 *Dua ya Kulala* 🌙
 
-💬 Maana: “Kwa jina lako ee Mwenyezi Mungu ninaishi, na kwa jina lako ninakufa (kulala).”
+بِاسْمِكَ اللَّهُمَّ أَمُوتُ وَأَحْيَا
+*Bismika Allahumma amootu wa ahyaa.*
 
-🕊️ _Soma dua hii kabla ya kulala._
-`;
-    await sock.sendMessage(m.key.remoteJid, { text: dua }, { quoted: m });
-  }
-};
+💡 Tafsiri:
+"Kwa jina Lako Ee Allah, nitaishi na nitakufa."`;
+
+  await msg.send(dua);
+});
